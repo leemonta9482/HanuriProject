@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { fetchAdminUsers, patchAdminUser } from '@/api/admin'
@@ -14,9 +14,21 @@ const items = ref<AdminUser[]>([])
 const loading = ref(false)
 const listError = ref('')
 
-const qUserId = ref('')
-const qName = ref('')
-const qSchoolName = ref('')
+const userSearchBy = ref<'user_id' | 'name' | 'school_name'>('user_id')
+const userSearchQuery = ref('')
+
+const userSearchPlaceholder = computed(() => {
+  switch (userSearchBy.value) {
+    case 'user_id':
+      return '아이디를 입력하세요'
+    case 'name':
+      return '이름을 입력하세요'
+    case 'school_name':
+      return '학교명을 입력하세요'
+    default:
+      return ''
+  }
+})
 
 const modalOpen = ref(false)
 const editing = ref<AdminUser | null>(null)
@@ -40,11 +52,14 @@ async function load() {
   listError.value = ''
   loading.value = true
   try {
-    const data = await fetchAdminUsers(page.value, pageSize.value, {
-      user_id: qUserId.value,
-      name: qName.value,
-      school_name: qSchoolName.value,
-    })
+    const q = userSearchQuery.value.trim()
+    const filters: { user_id?: string; name?: string; school_name?: string } = {}
+    if (q) {
+      if (userSearchBy.value === 'user_id') filters.user_id = q
+      else if (userSearchBy.value === 'name') filters.name = q
+      else filters.school_name = q
+    }
+    const data = await fetchAdminUsers(page.value, pageSize.value, filters)
     items.value = data.items
     total.value = data.total
     pages.value = data.pages
@@ -71,9 +86,8 @@ function onSearch() {
 }
 
 function onReset() {
-  qUserId.value = ''
-  qName.value = ''
-  qSchoolName.value = ''
+  userSearchBy.value = 'user_id'
+  userSearchQuery.value = ''
   onSearch()
 }
 
@@ -159,22 +173,24 @@ function regLabel(s: string) {
     <div v-if="listError" class="banner err" role="alert">{{ listError }}</div>
 
     <div class="search">
-      <label class="s">
-        <span>아이디</span>
-        <input v-model="qUserId" type="text" placeholder="아이디 검색" @keydown.enter.prevent="onSearch" />
-      </label>
-      <label class="s">
-        <span>이름</span>
-        <input v-model="qName" type="text" placeholder="이름 검색" @keydown.enter.prevent="onSearch" />
-      </label>
-      <label class="s">
-        <span>학교명</span>
-        <input
-          v-model="qSchoolName"
-          type="text"
-          placeholder="학교명 검색"
-          @keydown.enter.prevent="onSearch"
-        />
+      <label class="s search-combo">
+        <span>검색</span>
+        <div class="search-row">
+          <select v-model="userSearchBy" class="search-select" aria-label="검색 항목">
+            <option value="user_id">아이디</option>
+            <option value="name">이름</option>
+            <option value="school_name">학교명</option>
+          </select>
+          <input
+            v-model="userSearchQuery"
+            type="search"
+            class="search-input"
+            :placeholder="userSearchPlaceholder"
+            maxlength="100"
+            autocomplete="off"
+            @keydown.enter.prevent="onSearch"
+          />
+        </div>
       </label>
       <div class="s actions">
         <button type="button" class="btn ghost" :disabled="loading" @click="onReset">초기화</button>
@@ -341,7 +357,7 @@ function regLabel(s: string) {
 <style scoped>
 .admin {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -393,11 +409,16 @@ function regLabel(s: string) {
 }
 
 .search {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 0.75rem;
-  align-items: end;
   margin-bottom: 0.75rem;
+}
+
+.search-combo {
+  flex: 1 1 18rem;
+  min-width: 0;
 }
 
 .s {
@@ -407,12 +428,47 @@ function regLabel(s: string) {
   font-size: 0.8rem;
 }
 
-.s input {
-  padding: 0.5rem 0.6rem;
+.search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
   border-radius: 8px;
   border: 1px solid var(--color-border);
+  overflow: hidden;
+  background: var(--color-background);
+}
+
+.search-select {
+  flex: 0 0 auto;
+  min-width: 6.5rem;
+  max-width: 40%;
+  padding: 0.5rem 0.45rem;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-background-mute);
+  color: var(--color-text);
+  font-size: 0.88rem;
+}
+
+.search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.5rem 0.65rem;
+  border: none;
   background: var(--color-background);
   color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.search-input:focus,
+.search-select:focus {
+  outline: none;
+}
+
+.search-row:focus-within {
+  box-shadow: 0 0 0 2px hsla(160, 100%, 37%, 0.2);
+  border-color: hsla(160, 100%, 37%, 0.45);
 }
 
 .s.actions {

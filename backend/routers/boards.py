@@ -489,6 +489,70 @@ def list_my_favorites(
     )
 
 
+@router.get("/me/boards", response_model=BoardListResponse)
+def list_my_boards(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=48),
+    status_filter: str | None = Query(None, alias="status"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> BoardListResponse:
+    """내가 작성한 판매글만 조회 (내 상점)."""
+    seller = aliased(User)
+    stmt = (
+        select(Board, seller.name)
+        .join(seller, Board.user_id == seller.user_id)
+        .where(Board.user_id == user.user_id)
+    )
+    if status_filter in ("ON_SALE", "RESERVED", "SOLD"):
+        stmt = stmt.where(Board.status == status_filter)
+
+    count_q = select(func.count(Board.board_id)).where(Board.user_id == user.user_id)
+    if status_filter in ("ON_SALE", "RESERVED", "SOLD"):
+        count_q = count_q.where(Board.status == status_filter)
+    total = db.scalar(count_q) or 0
+    pages = ceil(total / page_size) if total else 0
+    offset = (page - 1) * page_size
+
+    stmt = stmt.order_by(desc(Board.created_at)).offset(offset).limit(page_size)
+    rows = db.execute(stmt).all()
+    board_ids = [b.board_id for b, _ in rows]
+    thumbs = _first_thumbnails(db, board_ids)
+    favs = _favorited_ids(db, user.user_id, board_ids)
+    fav_counts = _favorite_counts(db, board_ids)
+
+    items: list[BoardListItem] = []
+    for b, seller_name in rows:
+        sn = (
+            (seller_name or "").strip()
+            if isinstance(seller_name, str)
+            else (str(seller_name).strip() if seller_name else "")
+        )
+        items.append(
+            BoardListItem(
+                board_id=b.board_id,
+                user_id=b.user_id,
+                seller_name=sn or "회원",
+                title=b.title,
+                price=b.price,
+                location=b.location,
+                trade_type=b.trade_type,
+                status=b.status,
+                thumbnail_path=thumbs.get(b.board_id),
+                created_at=b.created_at,
+                is_favorited=b.board_id in favs,
+                favorite_count=fav_counts.get(b.board_id, 0),
+            )
+        )
+    return BoardListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
+    )
+
+
 @router.post("/boards/{board_id}/purchase-requests", response_model=PurchaseRequestOut)
 def create_purchase_request(
     board_id: int,

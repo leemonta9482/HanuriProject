@@ -122,6 +122,24 @@ export async function fetchMyFavorites(page = 1, page_size = 12): Promise<BoardL
   return (await res.json()) as BoardListResponse
 }
 
+/** 내가 작성한 판매글 (내 상점) */
+export async function fetchMyBoards(params: {
+  page?: number
+  page_size?: number
+  status?: string
+}): Promise<BoardListResponse> {
+  const sp = new URLSearchParams()
+  if (params.page) sp.set('page', String(params.page))
+  if (params.page_size) sp.set('page_size', String(params.page_size))
+  if (params.status) sp.set('status', params.status)
+  const q = sp.toString()
+  const res = await apiFetch(`${getBaseUrl()}/api/me/boards${q ? `?${q}` : ''}`, {
+    headers: authHeadersJson(),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as BoardListResponse
+}
+
 export async function createPurchaseRequest(boardId: number): Promise<PurchaseRequest> {
   const res = await apiFetch(`${getBaseUrl()}/api/boards/${boardId}/purchase-requests`, {
     method: 'POST',

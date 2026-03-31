@@ -246,7 +246,7 @@ function truncate(s: string, n: number) {
 <style scoped>
 .admin {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 

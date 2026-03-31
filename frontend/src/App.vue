@@ -19,6 +19,8 @@ const route = useRoute()
 const searchQuery = ref('')
 
 const sessionToast = ref({ show: false, message: '' })
+/** 로그아웃 완료 등 — 화면 중앙 알림(브라우저 alert 대체) */
+const centerAlert = ref({ show: false, message: '' })
 const liveToasts = ref<LiveToastItem[]>([])
 let sessionPollTimer: ReturnType<typeof setInterval> | null = null
 let sessionInvalidOnce = false
@@ -104,7 +106,12 @@ const canClearSearch = computed(() => {
 
 async function onLogout() {
   auth.logout()
+  centerAlert.value = { show: true, message: '로그아웃 되었습니다.' }
   await router.push({ name: 'home' })
+}
+
+function closeCenterAlert() {
+  centerAlert.value = { show: false, message: '' }
 }
 
 function stopLiveStream() {
@@ -246,6 +253,7 @@ watch(
       <nav class="nav">
         <RouterLink to="/">거래</RouterLink>
         <template v-if="auth.isLoggedIn">
+          <RouterLink to="/my-shop">내 상점</RouterLink>
           <RouterLink to="/chat">채팅</RouterLink>
           <RouterLink v-if="auth.isAdmin" to="/admin/users" class="admin-link">관리자 페이지</RouterLink>
           <span class="user"
@@ -262,6 +270,19 @@ watch(
     <main class="main">
       <RouterView />
     </main>
+    <Teleport to="body">
+      <div v-if="centerAlert.show" class="center-alert-backdrop" @click.self="closeCenterAlert">
+        <div
+          class="center-alert"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="center-alert-msg"
+        >
+          <p id="center-alert-msg" class="center-alert-text">{{ centerAlert.message }}</p>
+          <button type="button" class="center-alert-btn" @click="closeCenterAlert">확인</button>
+        </div>
+      </div>
+    </Teleport>
     <Teleport to="body">
       <div v-if="sessionToast.show" class="session-toast" role="alert">
         {{ sessionToast.message }}
@@ -297,8 +318,8 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1rem;
-  padding-bottom: 1rem;
-  margin-bottom: 0.5rem;
+  padding-bottom: 2rem;
+  margin-bottom: 2.5rem;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -444,6 +465,61 @@ watch(
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.center-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.45);
+  animation: center-alert-fade 0.2s ease-out;
+}
+
+.center-alert {
+  width: 100%;
+  max-width: 22rem;
+  padding: 1.35rem 1.25rem 1.15rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.center-alert-text {
+  margin: 0 0 1.1rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.center-alert-btn {
+  min-width: 6.5rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  border: none;
+  background: hsla(160, 100%, 37%, 1);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.center-alert-btn:hover {
+  filter: brightness(1.05);
+}
+
+@keyframes center-alert-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .session-toast {

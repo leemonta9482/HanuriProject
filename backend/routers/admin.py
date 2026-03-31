@@ -117,10 +117,13 @@ def list_boards(
     board_id: int | None = Query(None, description="게시글 번호 검색(정확히)"),
     title: str | None = Query(None, description="게시글 제목 검색(부분일치)"),
     user_id: str | None = Query(None, description="작성자 아이디 검색(부분일치)"),
+    author_name: str | None = Query(None, description="작성자 이름 검색(부분일치, User.name)"),
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> AdminBoardListResponse:
     stmt = select(Board)
+    if author_name and author_name.strip():
+        stmt = stmt.join(User, Board.user_id == User.user_id)
     filters = []
     if board_id is not None:
         filters.append(Board.board_id == board_id)
@@ -128,6 +131,8 @@ def list_boards(
         filters.append(Board.title.like(f"%{title.strip()}%"))
     if user_id:
         filters.append(Board.user_id.like(f"%{user_id.strip()}%"))
+    if author_name and author_name.strip():
+        filters.append(User.name.like(f"%{author_name.strip()}%"))
     if filters:
         stmt = stmt.where(*filters)
 

@@ -43,12 +43,13 @@ export async function patchAdminUser(
 export async function fetchAdminBoards(
   page: number,
   pageSize: number,
-  filters?: { board_id?: number; title?: string; user_id?: string },
+  filters?: { board_id?: number; title?: string; user_id?: string; author_name?: string },
 ): Promise<AdminBoardListResponse> {
   const q = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (typeof filters?.board_id === 'number') q.set('board_id', String(filters.board_id))
   if (filters?.title?.trim()) q.set('title', filters.title.trim())
   if (filters?.user_id?.trim()) q.set('user_id', filters.user_id.trim())
+  if (filters?.author_name?.trim()) q.set('author_name', filters.author_name.trim())
   const res = await apiFetch(`${getBaseUrl()}/api/admin/boards?${q}`, {
     headers: authHeadersJson(),
   })

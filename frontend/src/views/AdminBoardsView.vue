@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { deleteAdminBoard, fetchAdminBoards, patchAdminBoard } from '@/api/admin'
@@ -15,20 +15,48 @@ const listError = ref('')
 const savingId = ref<number | null>(null)
 const statusDraft = reactive<Record<number, string>>({})
 
-const qBoardId = ref('')
-const qTitle = ref('')
-const qUserId = ref('')
+const boardSearchBy = ref<'board_id' | 'title' | 'user_id' | 'author_name'>('title')
+const boardSearchQuery = ref('')
+
+const boardSearchPlaceholder = computed(() => {
+  switch (boardSearchBy.value) {
+    case 'board_id':
+      return '게시글 번호(숫자, 정확히 일치)'
+    case 'title':
+      return '제목 검색'
+    case 'user_id':
+      return '작성자 아이디'
+    case 'author_name':
+      return '작성자 이름(실명)'
+    default:
+      return ''
+  }
+})
 
 async function load() {
   listError.value = ''
   loading.value = true
   try {
-    const boardIdNum = qBoardId.value.trim() ? Number(qBoardId.value.trim()) : undefined
-    const data = await fetchAdminBoards(page.value, pageSize.value, {
-      board_id: Number.isFinite(boardIdNum as number) ? (boardIdNum as number) : undefined,
-      title: qTitle.value,
-      user_id: qUserId.value,
-    })
+    const q = boardSearchQuery.value.trim()
+    const filters: {
+      board_id?: number
+      title?: string
+      user_id?: string
+      author_name?: string
+    } = {}
+    if (q) {
+      if (boardSearchBy.value === 'board_id') {
+        const n = Number(q)
+        if (Number.isFinite(n)) filters.board_id = n
+      } else if (boardSearchBy.value === 'title') {
+        filters.title = q
+      } else if (boardSearchBy.value === 'user_id') {
+        filters.user_id = q
+      } else {
+        filters.author_name = q
+      }
+    }
+    const data = await fetchAdminBoards(page.value, pageSize.value, filters)
     items.value = data.items
     total.value = data.total
     pages.value = data.pages
@@ -57,9 +85,8 @@ function onSearch() {
 }
 
 function onReset() {
-  qBoardId.value = ''
-  qTitle.value = ''
-  qUserId.value = ''
+  boardSearchBy.value = 'title'
+  boardSearchQuery.value = ''
   onSearch()
 }
 
@@ -127,17 +154,25 @@ async function removeBoard(b: AdminBoard) {
     <div v-if="listError" class="banner err" role="alert">{{ listError }}</div>
 
     <div class="search">
-      <label class="s field">
-        <span>게시글 번호</span>
-        <input v-model="qBoardId" type="text" placeholder="예: 123" @keydown.enter.prevent="onSearch" />
-      </label>
-      <label class="s field">
-        <span>게시글 이름</span>
-        <input v-model="qTitle" type="text" placeholder="제목 검색" @keydown.enter.prevent="onSearch" />
-      </label>
-      <label class="s field">
-        <span>작성자</span>
-        <input v-model="qUserId" type="text" placeholder="작성자 아이디" @keydown.enter.prevent="onSearch" />
+      <label class="s search-combo">
+        <span>검색</span>
+        <div class="search-row">
+          <select v-model="boardSearchBy" class="search-select" aria-label="검색 항목">
+            <option value="board_id">게시글 번호</option>
+            <option value="title">게시글 이름</option>
+            <option value="user_id">작성자 아이디</option>
+            <option value="author_name">작성자 이름</option>
+          </select>
+          <input
+            v-model="boardSearchQuery"
+            type="search"
+            class="search-input"
+            :placeholder="boardSearchPlaceholder"
+            maxlength="200"
+            autocomplete="off"
+            @keydown.enter.prevent="onSearch"
+          />
+        </div>
       </label>
       <div class="s search-actions">
         <button type="button" class="btn ghost" :disabled="loading" @click="onReset">초기화</button>
@@ -257,7 +292,7 @@ async function removeBoard(b: AdminBoard) {
 <style scoped>
 .admin {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -335,25 +370,57 @@ async function removeBoard(b: AdminBoard) {
   margin-bottom: 1rem;
 }
 
-.s.field {
+.search-combo {
+  flex: 1 1 18rem;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   font-size: 0.8rem;
-  flex: 1 1 160px;
-  min-width: 0;
-  max-width: 280px;
 }
 
-.s.field input {
-  width: 100%;
+.search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
   min-width: 0;
-  padding: 0.5rem 0.6rem;
   border-radius: 8px;
   border: 1px solid var(--color-border);
+  overflow: hidden;
+  background: var(--color-background);
+}
+
+.search-select {
+  flex: 0 0 auto;
+  min-width: 7.5rem;
+  max-width: 42%;
+  padding: 0.5rem 0.45rem;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-background-mute);
+  color: var(--color-text);
+  font-size: 0.88rem;
+}
+
+.search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.5rem 0.65rem;
+  border: none;
   background: var(--color-background);
   color: var(--color-text);
+  font-size: 0.92rem;
   box-sizing: border-box;
+}
+
+.search-input:focus,
+.search-select:focus {
+  outline: none;
+}
+
+.search-row:focus-within {
+  box-shadow: 0 0 0 2px hsla(160, 100%, 37%, 0.2);
+  border-color: hsla(160, 100%, 37%, 0.45);
 }
 
 .search-actions {
