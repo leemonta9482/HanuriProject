@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 
-import { fetchAdminBoards } from '@/api/admin'
+import { deleteAdminBoard, fetchAdminBoards, patchAdminBoard } from '@/api/admin'
 import type { AdminBoard } from '@/api/types'
 
 const page = ref(1)
@@ -11,6 +12,8 @@ const pages = ref(0)
 const items = ref<AdminBoard[]>([])
 const loading = ref(false)
 const listError = ref('')
+const savingId = ref<number | null>(null)
+const statusDraft = reactive<Record<number, string>>({})
 
 const qBoardId = ref('')
 const qTitle = ref('')
@@ -29,6 +32,9 @@ async function load() {
     items.value = data.items
     total.value = data.total
     pages.value = data.pages
+    for (const b of data.items) {
+      statusDraft[b.board_id] = b.status
+    }
   } catch (e) {
     listError.value = e instanceof Error ? e.message : '목록을 불러오지 못했습니다.'
     items.value = []
@@ -64,36 +70,76 @@ function prevPage() {
 function nextPage() {
   if (pages.value && page.value < pages.value) page.value += 1
 }
+
+const statusLabel: Record<string, string> = {
+  ON_SALE: '판매중',
+  RESERVED: '예약중',
+  SOLD: '거래완료',
+}
+
+async function saveStatus(boardId: number) {
+  const row = items.value.find((x) => x.board_id === boardId)
+  if (!row) return
+  const next = statusDraft[boardId]
+  if (next === row.status) return
+  savingId.value = boardId
+  listError.value = ''
+  try {
+    await patchAdminBoard(boardId, {
+      status: next as 'ON_SALE' | 'RESERVED' | 'SOLD',
+    })
+    await load()
+  } catch (e) {
+    listError.value = e instanceof Error ? e.message : '상태 저장 실패'
+  } finally {
+    savingId.value = null
+  }
+}
+
+async function removeBoard(b: AdminBoard) {
+  if (!confirm(`게시글 #${b.board_id} 「${b.title}」을(를) 삭제할까요?`)) return
+  savingId.value = b.board_id
+  listError.value = ''
+  try {
+    await deleteAdminBoard(b.board_id)
+    await load()
+  } catch (e) {
+    listError.value = e instanceof Error ? e.message : '삭제 실패'
+  } finally {
+    savingId.value = null
+  }
+}
 </script>
 
 <template>
   <div class="admin">
     <nav class="tabs">
       <RouterLink class="tab" to="/admin/users">회원관리</RouterLink>
-      <RouterLink class="tab active" to="/admin/boards">게시글관리</RouterLink>
+      <RouterLink class="tab" to="/admin/boards">게시글관리</RouterLink>
+      <RouterLink class="tab" to="/admin/reports">신고관리</RouterLink>
     </nav>
 
     <header class="head">
       <h1 class="h1">게시글 관리</h1>
-      <p class="sub">게시글을 조회하고 검색(게시글번호/제목/작성자)할 수 있습니다.</p>
+      <p class="sub">게시글을 조회·검색하고, 거래 상태를 변경하거나 삭제할 수 있습니다.</p>
     </header>
 
     <div v-if="listError" class="banner err" role="alert">{{ listError }}</div>
 
     <div class="search">
-      <label class="s">
+      <label class="s field">
         <span>게시글 번호</span>
         <input v-model="qBoardId" type="text" placeholder="예: 123" @keydown.enter.prevent="onSearch" />
       </label>
-      <label class="s">
+      <label class="s field">
         <span>게시글 이름</span>
         <input v-model="qTitle" type="text" placeholder="제목 검색" @keydown.enter.prevent="onSearch" />
       </label>
-      <label class="s">
+      <label class="s field">
         <span>작성자</span>
         <input v-model="qUserId" type="text" placeholder="작성자 아이디" @keydown.enter.prevent="onSearch" />
       </label>
-      <div class="s actions">
+      <div class="s search-actions">
         <button type="button" class="btn ghost" :disabled="loading" @click="onReset">초기화</button>
         <button type="button" class="btn primary" :disabled="loading" @click="onSearch">검색</button>
       </div>
@@ -129,28 +175,78 @@ function nextPage() {
 
     <div class="table-wrap">
       <table class="table">
+        <colgroup>
+          <col class="col-id" />
+          <col class="col-title" />
+          <col class="col-author" />
+          <col class="col-price" />
+          <col class="col-status" />
+          <col class="col-manage" />
+        </colgroup>
         <thead>
           <tr>
-            <th>게시글 번호</th>
-            <th>게시글 이름</th>
-            <th>작성자</th>
-            <th>가격</th>
-            <th>상태</th>
+            <th scope="col" class="th-num">번호</th>
+            <th scope="col">제목</th>
+            <th scope="col">작성자</th>
+            <th scope="col" class="th-price">가격</th>
+            <th scope="col">상태</th>
+            <th scope="col" class="th-manage">관리</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="empty">불러오는 중…</td>
+            <td colspan="6" class="empty">불러오는 중…</td>
           </tr>
           <tr v-else-if="!items.length">
-            <td colspan="5" class="empty">게시글이 없습니다.</td>
+            <td colspan="6" class="empty">게시글이 없습니다.</td>
           </tr>
           <tr v-for="b in items" :key="b.board_id">
-            <td class="mono">{{ b.board_id }}</td>
-            <td class="title">{{ b.title }}</td>
-            <td class="mono">{{ b.user_id }}</td>
-            <td>{{ b.price.toLocaleString() }}</td>
-            <td>{{ b.status }}</td>
+            <td class="mono cell-id">{{ b.board_id }}</td>
+            <td class="cell-title">{{ b.title }}</td>
+            <td class="mono cell-author">{{ b.user_id }}</td>
+            <td class="cell-price">{{ b.price.toLocaleString() }}</td>
+            <td class="cell-status">
+              <span
+                class="status-label"
+                :class="{
+                  'status-label--on-sale': b.status === 'ON_SALE',
+                  'status-label--reserved': b.status === 'RESERVED',
+                  'status-label--sold': b.status === 'SOLD',
+                }"
+              >{{ statusLabel[b.status] ?? b.status }}</span>
+            </td>
+            <td class="cell-manage">
+              <div class="manage-stack">
+                <RouterLink class="link-detail" :to="`/boards/${b.board_id}`" target="_blank">상세 보기</RouterLink>
+                <div class="status-row">
+                  <select
+                    v-model="statusDraft[b.board_id]"
+                    class="select-sm"
+                    :disabled="savingId === b.board_id"
+                  >
+                    <option value="ON_SALE">판매중</option>
+                    <option value="RESERVED">예약중</option>
+                    <option value="SOLD">거래완료</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn ghost sm"
+                    :disabled="savingId === b.board_id || statusDraft[b.board_id] === b.status"
+                    @click="saveStatus(b.board_id)"
+                  >
+                    적용
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  class="btn danger sm btn-block"
+                  :disabled="savingId === b.board_id"
+                  @click="removeBoard(b)"
+                >
+                  삭제
+                </button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -180,7 +276,7 @@ function nextPage() {
   font-size: 0.9rem;
 }
 
-.tab.active {
+.tab.router-link-active {
   background: hsla(160, 100%, 37%, 0.12);
   border-color: hsla(160, 100%, 37%, 0.35);
   font-weight: 600;
@@ -232,33 +328,42 @@ function nextPage() {
 }
 
 .search {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
-  gap: 0.75rem;
-  align-items: end;
-  margin-bottom: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.75rem;
+  margin-bottom: 1rem;
 }
 
-.s {
+.s.field {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
   font-size: 0.8rem;
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 280px;
 }
 
-.s input {
+.s.field input {
+  width: 100%;
+  min-width: 0;
   padding: 0.5rem 0.6rem;
   border-radius: 8px;
   border: 1px solid var(--color-border);
   background: var(--color-background);
   color: var(--color-text);
+  box-sizing: border-box;
 }
 
-.s.actions {
+.search-actions {
   display: flex;
-  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   align-items: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-bottom: 0.05rem;
 }
 
 .table-wrap {
@@ -266,19 +371,43 @@ function nextPage() {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   background: var(--color-background-soft);
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
   width: 100%;
+  min-width: 860px;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 0.875rem;
+}
+
+.table col.col-id {
+  width: 7%;
+}
+.table col.col-title {
+  width: 26%;
+}
+.table col.col-author {
+  width: 12%;
+}
+.table col.col-price {
+  width: 10%;
+}
+.table col.col-status {
+  width: 10%;
+}
+.table col.col-manage {
+  width: 35%;
 }
 
 .table th,
 .table td {
   padding: 0.65rem 0.75rem;
   text-align: left;
+  vertical-align: middle;
   border-bottom: 1px solid var(--color-border);
+  box-sizing: border-box;
 }
 
 .table th {
@@ -287,14 +416,55 @@ function nextPage() {
   white-space: nowrap;
 }
 
+.table td {
+  word-break: break-word;
+}
+
+.th-num {
+  text-align: center;
+}
+
+.th-price {
+  text-align: right;
+}
+
+.th-manage {
+  text-align: left;
+}
+
 .mono {
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
 }
 
-.title {
-  max-width: 520px;
-  word-break: break-word;
+.cell-id {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.cell-title {
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.cell-author {
+  vertical-align: middle;
+}
+
+.cell-price {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.cell-status {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.cell-manage {
+  vertical-align: middle;
 }
 
 .empty {
@@ -339,6 +509,120 @@ function nextPage() {
 .banner.err {
   background: rgba(192, 57, 43, 0.12);
   color: #a93226;
+}
+
+.manage-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+
+.link-detail {
+  display: block;
+  text-align: center;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: hsla(160, 100%, 30%, 1);
+  text-decoration: none;
+  border-radius: 6px;
+  background: hsla(160, 100%, 37%, 0.1);
+}
+
+.link-detail:hover {
+  background: hsla(160, 100%, 37%, 0.18);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.status-row .select-sm {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.select-sm {
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 0.8rem;
+}
+
+.status-label {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.status-label--on-sale {
+  background: hsla(160, 45%, 92%, 1);
+  color: hsla(160, 100%, 22%, 1);
+}
+
+.status-label--reserved {
+  background: hsla(48, 88%, 88%, 1);
+  color: hsla(32, 85%, 26%, 1);
+}
+
+.status-label--sold {
+  background: hsla(0, 55%, 92%, 1);
+  color: hsla(0, 55%, 34%, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .status-label--on-sale {
+    background: hsla(160, 35%, 18%, 1);
+    color: hsla(145, 65%, 62%, 1);
+  }
+
+  .status-label--reserved {
+    background: hsla(45, 45%, 18%, 1);
+    color: hsla(48, 88%, 58%, 1);
+  }
+
+  .status-label--sold {
+    background: hsla(0, 40%, 22%, 1);
+    color: hsla(0, 75%, 72%, 1);
+  }
+}
+
+.btn.sm {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.btn-block {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn.danger {
+  border: 1px solid #c0392b;
+  background: transparent;
+  color: #c0392b;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.08);
+}
+
+@media (max-width: 720px) {
+  .search-actions {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
 }
 </style>
 

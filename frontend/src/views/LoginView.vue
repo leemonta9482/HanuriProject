@@ -19,23 +19,33 @@ onMounted(() => {
   }
 })
 
+function doLogoutOnly() {
+  auth.logout()
+  error.value = ''
+}
+
 async function onSubmit() {
   error.value = ''
   loading.value = true
   try {
+    // 다른 탭·이전 세션으로 이미 로그인된 경우 기존 토큰을 먼저 제거해야 새 로그인이 정상 동작합니다.
+    auth.logout()
     await auth.login(userId.value.trim(), password.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
-    if (redirect) {
-      await router.push(redirect)
-    } else if (auth.isAdmin) {
-      await router.push({ name: 'admin-users' })
-    } else {
-      await router.push({ name: 'home' })
-    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '로그인에 실패했습니다.'
   } finally {
+    // router.replace를 await하면 네비게이션이 끝나지 않는 경우 finally가 실행되지 않아 '처리 중'이 멈춥니다.
     loading.value = false
+  }
+  if (error.value) return
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+  const isLoginRedirect = redirect.startsWith('/login')
+  if (redirect && !isLoginRedirect) {
+    void router.replace(redirect)
+  } else if (auth.isAdmin) {
+    void router.replace({ name: 'admin-users' })
+  } else {
+    void router.replace({ name: 'home' })
   }
 }
 </script>
@@ -44,6 +54,10 @@ async function onSubmit() {
   <div class="auth-page">
     <div class="card">
       <h1 class="title">로그인</h1>
+      <div v-if="auth.isLoggedIn" class="already-session" role="status">
+        <p class="already-text">다른 계정으로 로그인하려면 먼저 로그아웃해 주세요.</p>
+        <button type="button" class="btn-logout" @click="doLogoutOnly">로그아웃</button>
+      </div>
       <p v-if="route.query.pending === '1'" class="hint success">
         가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.
       </p>
@@ -193,5 +207,39 @@ async function onSubmit() {
 .link {
   font-weight: 600;
   margin-left: 0.25rem;
+}
+
+.already-session {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-mute);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.already-text {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.btn-logout {
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-logout:hover {
+  border-color: var(--color-border-hover);
 }
 </style>

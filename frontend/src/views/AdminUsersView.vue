@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import { fetchAdminUsers, patchAdminUser } from '@/api/admin'
 import { uploadsPublicUrl } from '@/api/client'
@@ -145,8 +146,9 @@ function regLabel(s: string) {
 <template>
   <div class="admin">
     <nav class="tabs">
-      <RouterLink class="tab active" to="/admin/users">회원관리</RouterLink>
+      <RouterLink class="tab" to="/admin/users">회원관리</RouterLink>
       <RouterLink class="tab" to="/admin/boards">게시글관리</RouterLink>
+      <RouterLink class="tab" to="/admin/reports">신고관리</RouterLink>
     </nav>
 
     <header class="head">
@@ -358,7 +360,7 @@ function regLabel(s: string) {
   font-size: 0.9rem;
 }
 
-.tab.active {
+.tab.router-link-active {
   background: hsla(160, 100%, 37%, 0.12);
   border-color: hsla(160, 100%, 37%, 0.35);
   font-weight: 600;

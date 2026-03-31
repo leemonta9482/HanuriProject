@@ -12,6 +12,49 @@ const router = createRouter({
       component: HomeView,
     },
     {
+      path: '/boards/new',
+      redirect: { name: 'post-write' },
+    },
+    {
+      path: '/write',
+      name: 'post-write',
+      component: () => import('../views/PostCreateView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/boards/:id/edit',
+      name: 'board-edit',
+      component: () => import('../views/BoardFormView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/boards/:id',
+      name: 'board-detail',
+      component: () => import('../views/BoardDetailView.vue'),
+    },
+    {
+      path: '/favorites',
+      name: 'favorites',
+      component: () => import('../views/FavoritesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/chat',
+      name: 'chat',
+      component: () => import('../views/ChatView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/wanted',
+      redirect: '/',
+    },
+    {
+      path: '/wanted/:id',
+      name: 'wanted-detail',
+      component: () => import('../views/WantedDetailView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),
@@ -38,9 +81,10 @@ const router = createRouter({
       meta: { requiresAdmin: true },
     },
     {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue'),
+      path: '/admin/reports',
+      name: 'admin-reports',
+      component: () => import('../views/AdminReportsView.vue'),
+      meta: { requiresAdmin: true },
     },
   ],
 })
@@ -53,6 +97,11 @@ router.beforeEach((to) => {
     }
     if (!auth.isAdmin) {
       return { name: 'home' }
+    }
+  }
+  if (to.meta.requiresAuth) {
+    if (!auth.isLoggedIn) {
+      return { name: 'login', query: { redirect: to.fullPath } }
     }
   }
 })
