@@ -451,7 +451,7 @@ async function onToggleFavorite(it: BoardListItem) {
   margin: 0 0 0.35rem;
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  line-clamp: 2;
   overflow: hidden;
 }
 
