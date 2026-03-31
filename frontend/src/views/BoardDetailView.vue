@@ -6,7 +6,6 @@ import { addFavorite, deleteBoard, fetchBoard, removeFavorite, reportBoard, upda
 import { openChatRoom } from '@/api/chat'
 import { uploadsPublicUrl } from '@/api/client'
 import type { BoardDetail } from '@/api/types'
-import TechnicalSpecPanel from '@/components/TechnicalSpecPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -213,6 +212,7 @@ watch(board, (b) => {
           >{{ statusLabel[board.status] ?? board.status }}</span>
           <span class="chip chip-trade">{{ tradeLabel[board.trade_type] ?? board.trade_type }}</span>
         </div>
+        <p class="fav-count">찜 {{ board.favorite_count }}</p>
         <p class="seller">
           <span class="label">판매자</span>
           {{ board.seller_name }}
@@ -274,8 +274,6 @@ watch(board, (b) => {
         <p v-else class="description-block__empty">판매자가 상품 설명을 등록하지 않았습니다.</p>
       </div>
     </section>
-
-    <TechnicalSpecPanel />
   </div>
 
   <p v-else class="err">{{ error || '게시글을 찾을 수 없습니다.' }}</p>
@@ -447,7 +445,15 @@ watch(board, (b) => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.45rem;
+}
+
+.fav-count {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.9;
 }
 
 .chip {

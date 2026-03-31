@@ -68,6 +68,17 @@ def _favorited_ids(db: Session, user_id: str | None, board_ids: list[int]) -> se
     return set(rows)
 
 
+def _favorite_counts(db: Session, board_ids: list[int]) -> dict[int, int]:
+    if not board_ids:
+        return {}
+    rows = db.execute(
+        select(Favorite.board_id, func.count(Favorite.id))
+        .where(Favorite.board_id.in_(board_ids))
+        .group_by(Favorite.board_id)
+    ).all()
+    return {int(r[0]): int(r[1]) for r in rows}
+
+
 @router.get("/boards", response_model=BoardListResponse)
 def list_boards(
     page: int = Query(1, ge=1),
@@ -104,6 +115,7 @@ def list_boards(
     board_ids = [b.board_id for b, _ in rows]
     thumbs = _first_thumbnails(db, board_ids)
     favs = _favorited_ids(db, user.user_id, board_ids)
+    fav_counts = _favorite_counts(db, board_ids)
 
     items: list[BoardListItem] = []
     for b, seller_name in rows:
@@ -120,6 +132,7 @@ def list_boards(
                 thumbnail_path=thumbs.get(b.board_id),
                 created_at=b.created_at,
                 is_favorited=b.board_id in favs,
+                favorite_count=fav_counts.get(b.board_id, 0),
             )
         )
     return BoardListResponse(
@@ -159,6 +172,9 @@ def _board_detail_out(
             ).scalar_one_or_none()
             if pr:
                 my_pr = pr.status
+    fav_count = (
+        db.scalar(select(func.count(Favorite.id)).where(Favorite.board_id == board.board_id)) or 0
+    )
     return BoardDetailOut(
         board_id=board.board_id,
         user_id=board.user_id,
@@ -175,6 +191,7 @@ def _board_detail_out(
         is_favorited=is_fav,
         is_owner=bool(viewer and viewer.user_id == board.user_id),
         my_purchase_request_status=my_pr,
+        favorite_count=int(fav_count),
     )
 
 
@@ -360,6 +377,11 @@ def add_favorite(
     if board is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
     _assert_same_school_board(db, board, user)
+    if board.user_id == user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="자신이 올린 판매글은 찜할 수 없습니다.",
+        )
     db.add(Favorite(user_id=user.user_id, board_id=board_id))
     try:
         db.commit()
@@ -438,6 +460,7 @@ def list_my_favorites(
     board_ids = [b.board_id for b, _ in rows]
     thumbs = _first_thumbnails(db, board_ids)
     favs = _favorited_ids(db, user.user_id, board_ids)
+    fav_counts = _favorite_counts(db, board_ids)
     items = []
     for b, seller_name in rows:
         sn = (seller_name or "").strip() if isinstance(seller_name, str) else (str(seller_name).strip() if seller_name else "")
@@ -454,6 +477,7 @@ def list_my_favorites(
                 thumbnail_path=thumbs.get(b.board_id),
                 created_at=b.created_at,
                 is_favorited=b.board_id in favs,
+                favorite_count=fav_counts.get(b.board_id, 0),
             )
         )
     return BoardListResponse(

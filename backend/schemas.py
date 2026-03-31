@@ -155,6 +155,7 @@ class BoardListItem(BaseModel):
     thumbnail_path: str | None
     created_at: object | None = None
     is_favorited: bool = False
+    favorite_count: int = 0
 
 
 class BoardListResponse(BaseModel):
@@ -181,6 +182,7 @@ class BoardDetailOut(BaseModel):
     is_favorited: bool = False
     is_owner: bool = False
     my_purchase_request_status: str | None = None
+    favorite_count: int = 0
 
 
 class BoardUpdate(BaseModel):
@@ -264,6 +266,8 @@ class FeedItemOut(BaseModel):
     status: str | None = None
     trade_type: str | None = None
     is_favorited: bool = False
+    favorite_count: int = 0
+    is_owner: bool = False
 
 
 class FeedListResponse(BaseModel):

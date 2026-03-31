@@ -9,7 +9,7 @@ from deps import get_current_user
 from models import Board, User, WantedPost
 from schemas import FeedItemOut, FeedListResponse
 
-from .boards import _favorited_ids, _first_thumbnails
+from .boards import _favorite_counts, _favorited_ids, _first_thumbnails
 
 router = APIRouter(prefix="/api", tags=["feed"])
 
@@ -33,7 +33,7 @@ def _sanitize_search(q: str | None) -> str | None:
 
 def _feed_union_sql(board_where: str, wanted_where: str, order_sql: str) -> str:
     return f"""
-SELECT kind, board_id, wanted_id, title, price_sort, created_at, seller_name, loc, board_status, trade_type, display_price
+SELECT kind, board_id, wanted_id, title, price_sort, created_at, seller_name, loc, board_status, trade_type, display_price, owner_user_id
 FROM (
   SELECT
     'board' AS kind,
@@ -46,7 +46,8 @@ FROM (
     b.location AS loc,
     b.status AS board_status,
     b.trade_type AS trade_type,
-    b.price AS display_price
+    b.price AS display_price,
+    b.user_id AS owner_user_id
   FROM Board b
   INNER JOIN User u ON b.user_id = u.user_id
   WHERE {board_where}
@@ -62,7 +63,8 @@ FROM (
     w.preferred_location,
     NULL,
     NULL,
-    w.max_price AS display_price
+    w.max_price AS display_price,
+    w.user_id AS owner_user_id
   FROM WantedPost w
   INNER JOIN User u ON w.user_id = u.user_id
   WHERE {wanted_where}
@@ -168,10 +170,13 @@ def list_feed(
     board_ids = [int(r["board_id"]) for r in rows if r["kind"] == "board" and r["board_id"] is not None]
     thumbs = _first_thumbnails(db, board_ids)
     favs = _favorited_ids(db, user.user_id, board_ids)
+    fav_counts = _favorite_counts(db, board_ids)
 
     items: list[FeedItemOut] = []
     for r in rows:
         kind = r["kind"]
+        oid = r.get("owner_user_id")
+        is_owner = oid is not None and str(oid) == user.user_id
         if kind == "board":
             bid = int(r["board_id"])
             dp = r["display_price"]
@@ -190,6 +195,8 @@ def list_feed(
                     status=r["board_status"],
                     trade_type=r["trade_type"],
                     is_favorited=bid in favs,
+                    favorite_count=fav_counts.get(bid, 0),
+                    is_owner=is_owner,
                 )
             )
         else:
@@ -210,6 +217,8 @@ def list_feed(
                     status=None,
                     trade_type=None,
                     is_favorited=False,
+                    favorite_count=0,
+                    is_owner=is_owner,
                 )
             )
 

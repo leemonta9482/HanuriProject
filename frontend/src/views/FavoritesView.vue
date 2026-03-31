@@ -2,13 +2,14 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { fetchMyFavorites } from '@/api/boards'
+import { fetchMyFavorites, removeFavorite } from '@/api/boards'
 import { uploadsPublicUrl } from '@/api/client'
 import type { BoardListItem } from '@/api/types'
 
 const items = ref<BoardListItem[]>([])
 const error = ref('')
 const loading = ref(true)
+const favBusyBoardId = ref<number | null>(null)
 
 function thumbUrl(path: string | null): string | null {
   if (!path) return null
@@ -17,6 +18,20 @@ function thumbUrl(path: string | null): string | null {
 
 function formatPrice(n: number): string {
   return new Intl.NumberFormat('ko-KR').format(n) + '원'
+}
+
+async function onThumbFavorite(it: BoardListItem) {
+  if (favBusyBoardId.value === it.board_id) return
+  favBusyBoardId.value = it.board_id
+  error.value = ''
+  try {
+    await removeFavorite(it.board_id)
+    items.value = items.value.filter((x) => x.board_id !== it.board_id)
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '찜 해제에 실패했습니다.'
+  } finally {
+    favBusyBoardId.value = null
+  }
 }
 
 onMounted(async () => {
@@ -50,6 +65,17 @@ onMounted(async () => {
           <div class="thumb" :class="{ empty: !it.thumbnail_path }">
             <img v-if="thumbUrl(it.thumbnail_path)" :src="thumbUrl(it.thumbnail_path)!" alt="" />
             <span v-else class="ph">이미지 없음</span>
+            <button
+              type="button"
+              class="thumb-fav thumb-fav--on"
+              :disabled="favBusyBoardId === it.board_id"
+              aria-pressed="true"
+              aria-label="찜 해제"
+              @click.stop.prevent="onThumbFavorite(it)"
+            >
+              <span class="thumb-fav-count">{{ it.favorite_count }}</span>
+              <span class="thumb-fav-icon" aria-hidden="true">♥</span>
+            </button>
           </div>
           <div class="meta">
             <p class="card-title">{{ it.title }}</p>
@@ -169,6 +195,7 @@ onMounted(async () => {
 }
 
 .thumb {
+  position: relative;
   aspect-ratio: 4 / 3;
   background: var(--color-background-mute);
   display: flex;
@@ -200,6 +227,56 @@ onMounted(async () => {
 .price {
   margin-top: 0.35rem;
   font-weight: 700;
+}
+
+.thumb-fav {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  min-width: 2.35rem;
+  padding: 0.28rem 0.35rem 0.22rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.48);
+  color: #fff;
+  line-height: 1;
+  transition:
+    background 0.15s,
+    transform 0.12s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.thumb-fav:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.62);
+  transform: scale(1.04);
+}
+
+.thumb-fav:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.thumb-fav--on .thumb-fav-icon {
+  color: #ff6b8a;
+}
+
+.thumb-fav-count {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.thumb-fav-icon {
+  font-size: 1.05rem;
+  line-height: 1;
 }
 
 .empty {

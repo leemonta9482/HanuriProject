@@ -152,6 +152,7 @@ export interface BoardListItem {
   thumbnail_path: string | null
   created_at?: string | null
   is_favorited: boolean
+  favorite_count: number
 }
 
 export interface BoardListResponse {
@@ -184,6 +185,7 @@ export interface BoardDetail {
   is_favorited: boolean
   is_owner: boolean
   my_purchase_request_status: string | null
+  favorite_count: number
 }
 
 export interface BoardUpdatePayload {
@@ -232,6 +234,9 @@ export interface FeedItem {
   status: string | null
   trade_type: string | null
   is_favorited: boolean
+  favorite_count: number
+  /** 판매글: 본인 게시글 여부 (찜 버튼 비활성) */
+  is_owner: boolean
 }
 
 export interface FeedListResponse {

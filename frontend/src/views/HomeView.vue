@@ -2,8 +2,8 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
+import { addFavorite, removeFavorite, type BoardSort } from '@/api/boards'
 import { fetchFeed } from '@/api/feed'
-import type { BoardSort } from '@/api/boards'
 import { uploadsPublicUrl } from '@/api/client'
 import type { FeedItem } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
@@ -25,6 +25,8 @@ const loading = ref(false)
 const error = ref('')
 const sentinel = ref<HTMLElement | null>(null)
 const hasMore = computed(() => totalPages.value > 0 && page.value <= totalPages.value)
+/** 같은 카드 연속 찜 요청 방지 */
+const favBusyBoardId = ref<number | null>(null)
 
 const statusLabel: Record<string, string> = {
   ON_SALE: '판매중',
@@ -55,6 +57,34 @@ function cardKey(it: FeedItem): string {
   if (it.kind === 'board' && it.board_id != null) return `b-${it.board_id}`
   if (it.kind === 'wanted' && it.wanted_id != null) return `w-${it.wanted_id}`
   return `x-${it.title}`
+}
+
+async function onToggleFeedFavorite(it: FeedItem) {
+  if (it.kind !== 'board' || it.board_id == null || it.is_owner) return
+  if (favBusyBoardId.value === it.board_id) return
+  favBusyBoardId.value = it.board_id
+  error.value = ''
+  try {
+    const detail = it.is_favorited
+      ? await removeFavorite(it.board_id)
+      : await addFavorite(it.board_id)
+    const key = cardKey(it)
+    const idx = items.value.findIndex((x) => cardKey(x) === key)
+    if (idx >= 0) {
+      const cur = items.value[idx]
+      if (cur && cur.kind === 'board') {
+        items.value[idx] = {
+          ...cur,
+          is_favorited: detail.is_favorited,
+          favorite_count: detail.favorite_count,
+        } satisfies FeedItem
+      }
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '찜 처리에 실패했습니다.'
+  } finally {
+    favBusyBoardId.value = null
+  }
 }
 
 /** IntersectionObserver는 교차 상태가 변할 때만 콜백을 호출한다. 로딩 중에는 스킵되다가,
@@ -244,7 +274,27 @@ watch(sentinel, (el) => {
               }"
             >{{ statusLabel[it.status] ?? it.status }}</span>
             <span v-if="it.kind === 'wanted'" class="badge-kind">구매 희망</span>
-            <span v-if="it.kind === 'board' && it.is_favorited" class="heart" title="찜함">♥</span>
+            <button
+              v-if="it.kind === 'board' && it.board_id != null && !it.is_owner"
+              type="button"
+              class="thumb-fav"
+              :class="{ 'thumb-fav--on': it.is_favorited }"
+              :disabled="favBusyBoardId === it.board_id"
+              :aria-pressed="it.is_favorited"
+              :aria-label="it.is_favorited ? '찜 해제' : '찜하기'"
+              @click.stop.prevent="onToggleFeedFavorite(it)"
+            >
+              <span class="thumb-fav-count">{{ it.favorite_count }}</span>
+              <span class="thumb-fav-icon" aria-hidden="true">{{ it.is_favorited ? '♥' : '♡' }}</span>
+            </button>
+            <div
+              v-else-if="it.kind === 'board' && it.board_id != null && it.is_owner"
+              class="thumb-fav thumb-fav--static"
+              title="내가 올린 글은 찜할 수 없습니다"
+            >
+              <span class="thumb-fav-count">{{ it.favorite_count }}</span>
+              <span class="thumb-fav-icon" aria-hidden="true">♡</span>
+            </div>
           </div>
           <div class="meta">
             <p class="card-title">{{ it.title }}</p>
@@ -478,13 +528,61 @@ watch(sentinel, (el) => {
   color: #fff;
 }
 
-.heart {
+.thumb-fav {
   position: absolute;
-  right: 0.5rem;
-  top: 0.45rem;
-  font-size: 1rem;
-  color: #e74c3c;
-  text-shadow: 0 0 2px #000;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  min-width: 2.35rem;
+  padding: 0.28rem 0.35rem 0.22rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.48);
+  color: #fff;
+  line-height: 1;
+  transition:
+    background 0.15s,
+    transform 0.12s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.thumb-fav:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.62);
+  transform: scale(1.04);
+}
+
+.thumb-fav:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.thumb-fav--static {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.88;
+}
+
+.thumb-fav--on .thumb-fav-icon {
+  color: #ff6b8a;
+}
+
+.thumb-fav-count {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.thumb-fav-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+  transition: color 0.15s;
 }
 
 .meta {
