@@ -9,6 +9,7 @@ CREATE TABLE User (
     user_id VARCHAR(50) PRIMARY KEY,         -- 아이디 (PK)
     password VARCHAR(255) NOT NULL,          -- 비밀번호 (암호화 저장)
     name VARCHAR(50) NOT NULL,               -- 이름
+    school_name VARCHAR(100) NOT NULL,       -- 학교명
     phone VARCHAR(20) UNIQUE NOT NULL,       -- 전화번호 (중복 방지)
     email VARCHAR(100) UNIQUE NOT NULL,      -- 이메일 (중복 방지)
     
@@ -21,6 +22,11 @@ CREATE TABLE User (
     interest_major VARCHAR(100),             -- 관심 전공
     
     account_status ENUM('ACTIVE', 'DORMANT', 'DELETED') DEFAULT 'ACTIVE',
+    
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,   -- 관리자 여부
+    
+    registration_status ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',  -- 가입 승인 상태
+    student_id_card_path VARCHAR(512) NOT NULL,   -- 학생증 이미지 저장 경로(서버 기준 상대경로)
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

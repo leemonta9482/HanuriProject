@@ -1,10 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from routers import auth
+from config import settings
+from routers import admin, auth
 
 app = FastAPI(title="HanuriProject API")
 app.include_router(auth.router)
+app.include_router(admin.router)
+
+uploads_dir = settings.upload_dir
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

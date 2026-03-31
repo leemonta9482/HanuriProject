@@ -17,7 +17,10 @@ function onLogout() {
       <nav class="nav">
         <RouterLink to="/">홈</RouterLink>
         <template v-if="auth.isLoggedIn">
-          <span class="user">{{ auth.user?.name }}님</span>
+          <RouterLink v-if="auth.isAdmin" to="/admin/users" class="admin-link">관리자 페이지</RouterLink>
+          <span class="user"
+            >{{ auth.user?.name }}님<span v-if="auth.isAdmin" class="badge">관리자</span></span
+          >
           <button type="button" class="ghost" @click="onLogout">로그아웃</button>
         </template>
         <template v-else>
@@ -70,9 +73,25 @@ function onLogout() {
   font-weight: 600;
 }
 
+.admin-link {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .user {
   font-size: 0.9rem;
   color: var(--color-text);
+}
+
+.badge {
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: hsla(160, 100%, 37%, 0.2);
+  color: hsla(160, 100%, 28%, 1);
+  vertical-align: middle;
 }
 
 .ghost {
