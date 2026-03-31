@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +15,10 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
+
+    @property
+    def upload_dir(self) -> Path:
+        return Path(__file__).resolve().parent / "uploads"
 
     @property
     def database_url(self) -> str:

@@ -11,7 +11,14 @@ function loadStoredUser(): LoginUserInfo | null {
   try {
     const raw = localStorage.getItem(USER_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as LoginUserInfo
+    const u = JSON.parse(raw) as Partial<LoginUserInfo>
+    if (!u.user_id || !u.name || !u.email) return null
+    return {
+      user_id: u.user_id,
+      name: u.name,
+      email: u.email,
+      is_admin: Boolean(u.is_admin),
+    }
   } catch {
     return null
   }
@@ -22,6 +29,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<LoginUserInfo | null>(loadStoredUser())
 
   const isLoggedIn = computed(() => Boolean(token.value))
+  const isAdmin = computed(() => Boolean(user.value?.is_admin))
 
   function setSession(accessToken: string, u: LoginUserInfo) {
     token.value = accessToken
@@ -42,5 +50,5 @@ export const useAuthStore = defineStore('auth', () => {
     setSession(data.access_token, data.user)
   }
 
-  return { token, user, isLoggedIn, setSession, logout, login }
+  return { token, user, isLoggedIn, isAdmin, setSession, logout, login }
 })

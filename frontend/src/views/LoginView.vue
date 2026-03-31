@@ -14,7 +14,7 @@ const error = ref('')
 const loading = ref(false)
 
 onMounted(() => {
-  if (route.query.registered === '1') {
+  if (route.query.registered === '1' || route.query.pending === '1') {
     error.value = ''
   }
 })
@@ -24,7 +24,14 @@ async function onSubmit() {
   loading.value = true
   try {
     await auth.login(userId.value.trim(), password.value)
-    await router.push({ name: 'home' })
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+    if (redirect) {
+      await router.push(redirect)
+    } else if (auth.isAdmin) {
+      await router.push({ name: 'admin-users' })
+    } else {
+      await router.push({ name: 'home' })
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '로그인에 실패했습니다.'
   } finally {
@@ -37,7 +44,10 @@ async function onSubmit() {
   <div class="auth-page">
     <div class="card">
       <h1 class="title">로그인</h1>
-      <p v-if="route.query.registered === '1'" class="hint success">
+      <p v-if="route.query.pending === '1'" class="hint success">
+        가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.
+      </p>
+      <p v-else-if="route.query.registered === '1'" class="hint success">
         회원가입이 완료되었습니다. 로그인해 주세요.
       </p>
       <form class="form" @submit.prevent="onSubmit">

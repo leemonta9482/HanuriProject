@@ -1,31 +1,26 @@
-import type { LoginPayload, LoginResponse, RegisterPayload, RegisterResponse } from './types'
+import type {
+  LoginPayload,
+  LoginResponse,
+  RegisterResponse,
+  RegisterWithStudentCardPayload,
+} from './types'
+import { getBaseUrl, parseJsonError } from './client'
 
-function getBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-}
+export async function registerUser(payload: RegisterWithStudentCardPayload): Promise<RegisterResponse> {
+  const form = new FormData()
+  form.append('user_id', payload.user_id.trim())
+  form.append('password', payload.password)
+  form.append('name', payload.name.trim())
+  form.append('school_name', payload.school_name.trim())
+  form.append('phone', payload.phone.trim())
+  form.append('email', payload.email.trim())
+  if (payload.student_id?.trim()) form.append('student_id', payload.student_id.trim())
+  if (payload.interest_major?.trim()) form.append('interest_major', payload.interest_major.trim())
+  form.append('student_id_card', payload.student_id_card)
 
-async function parseJsonError(res: Response): Promise<string> {
-  try {
-    const data = (await res.json()) as { detail?: unknown }
-    if (typeof data.detail === 'string') return data.detail
-    if (Array.isArray(data.detail)) {
-      return data.detail.map((d: { msg?: string }) => d.msg ?? '').filter(Boolean).join(' ')
-    }
-  } catch {
-    /* ignore */
-  }
-  return `요청 실패 (${res.status})`
-}
-
-export async function registerUser(payload: RegisterPayload): Promise<RegisterResponse> {
   const res = await fetch(`${getBaseUrl()}/api/auth/register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...payload,
-      student_id: payload.student_id?.trim() || null,
-      interest_major: payload.interest_major?.trim() || null,
-    }),
+    body: form,
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return (await res.json()) as RegisterResponse

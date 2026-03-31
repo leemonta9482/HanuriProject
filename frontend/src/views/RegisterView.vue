@@ -10,13 +10,21 @@ const userId = ref('')
 const password = ref('')
 const passwordConfirm = ref('')
 const name = ref('')
+const schoolName = ref('')
 const phone = ref('')
 const email = ref('')
 const studentId = ref('')
 const interestMajor = ref('')
+const studentIdCard = ref<File | null>(null)
 
 const error = ref('')
 const loading = ref(false)
+
+function onStudentCardChange(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  studentIdCard.value = file ?? null
+}
 
 async function onSubmit() {
   error.value = ''
@@ -28,18 +36,24 @@ async function onSubmit() {
     error.value = '비밀번호는 8자 이상이어야 합니다.'
     return
   }
+  if (!studentIdCard.value) {
+    error.value = '학생증 이미지를 첨부해 주세요.'
+    return
+  }
   loading.value = true
   try {
     await registerUser({
       user_id: userId.value.trim(),
       password: password.value,
       name: name.value.trim(),
+      school_name: schoolName.value.trim(),
       phone: phone.value.trim(),
       email: email.value.trim(),
       student_id: studentId.value.trim() || null,
       interest_major: interestMajor.value.trim() || null,
+      student_id_card: studentIdCard.value,
     })
-    await router.push({ name: 'login', query: { registered: '1' } })
+    await router.push({ name: 'login', query: { pending: '1' } })
   } catch (e) {
     error.value = e instanceof Error ? e.message : '회원가입에 실패했습니다.'
   } finally {
@@ -52,6 +66,9 @@ async function onSubmit() {
   <div class="auth-page">
     <div class="card">
       <h1 class="title">회원가입</h1>
+      <p class="lead">
+        가입 신청 후 관리자 승인이 완료되어야 로그인할 수 있습니다. 학생증 사진을 반드시 첨부해 주세요.
+      </p>
       <form class="form" @submit.prevent="onSubmit">
         <label class="field">
           <span class="label">아이디 <span class="req">*</span></span>
@@ -94,6 +111,17 @@ async function onSubmit() {
           <input v-model="name" type="text" name="name" required maxlength="50" placeholder="이름" />
         </label>
         <label class="field">
+          <span class="label">학교명 <span class="req">*</span></span>
+          <input
+            v-model="schoolName"
+            type="text"
+            name="school_name"
+            required
+            maxlength="100"
+            placeholder="예: 한우리대학교"
+          />
+        </label>
+        <label class="field">
           <span class="label">전화번호 <span class="req">*</span></span>
           <input
             v-model="phone"
@@ -122,9 +150,21 @@ async function onSubmit() {
             placeholder="선택"
           />
         </label>
+        <label class="field">
+          <span class="label">학생증 이미지 <span class="req">*</span></span>
+          <input
+            type="file"
+            name="student_id_card"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            required
+            class="file-input"
+            @change="onStudentCardChange"
+          />
+          <span class="file-hint">JPEG, PNG, WebP, GIF · 최대 5MB</span>
+        </label>
         <p v-if="error" class="hint error" role="alert">{{ error }}</p>
         <button class="submit" type="submit" :disabled="loading">
-          {{ loading ? '처리 중…' : '가입하기' }}
+          {{ loading ? '처리 중…' : '가입 신청하기' }}
         </button>
       </form>
       <p class="footer">
@@ -159,6 +199,15 @@ async function onSubmit() {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--color-heading);
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.lead {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.9;
   margin-bottom: 1.25rem;
   text-align: center;
 }
@@ -197,6 +246,16 @@ async function onSubmit() {
   outline: 2px solid hsla(160, 100%, 37%, 0.45);
   outline-offset: 0;
   border-color: hsla(160, 100%, 37%, 0.6);
+}
+
+.file-input {
+  padding: 0.5rem 0 !important;
+  font-size: 0.9rem !important;
+}
+
+.file-hint {
+  font-size: 0.75rem;
+  opacity: 0.8;
 }
 
 .hint {
