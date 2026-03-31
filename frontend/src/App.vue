@@ -1,85 +1,97 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
+
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+
+function onLogout() {
+  auth.logout()
+}
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
+  <div class="layout">
+    <header class="header">
+      <RouterLink to="/" class="brand">Hanuri</RouterLink>
+      <nav class="nav">
+        <RouterLink to="/">홈</RouterLink>
+        <template v-if="auth.isLoggedIn">
+          <span class="user">{{ auth.user?.name }}님</span>
+          <button type="button" class="ghost" @click="onLogout">로그아웃</button>
+        </template>
+        <template v-else>
+          <RouterLink to="/login">로그인</RouterLink>
+          <RouterLink to="/register">회원가입</RouterLink>
+        </template>
         <RouterLink to="/about">About</RouterLink>
       </nav>
-    </div>
-  </header>
-
-  <RouterView />
+    </header>
+    <main class="main">
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
+.brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--color-heading);
 }
 
-nav a.router-link-exact-active {
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  font-size: 0.95rem;
+}
+
+.nav a.router-link-exact-active {
+  color: var(--color-heading);
+  font-weight: 600;
+}
+
+.user {
+  font-size: 0.9rem;
   color: var(--color-text);
 }
 
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
+.ghost {
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  cursor: pointer;
 }
 
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
+.ghost:hover {
+  border-color: var(--color-border-hover);
 }
 
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 </style>
