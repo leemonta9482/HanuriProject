@@ -33,7 +33,7 @@ def _sanitize_search(q: str | None) -> str | None:
 
 def _feed_union_sql(board_where: str, wanted_where: str, order_sql: str) -> str:
     return f"""
-SELECT kind, board_id, wanted_id, title, price_sort, created_at, seller_name, loc, board_status, trade_type, display_price, owner_user_id
+SELECT kind, board_id, wanted_id, title, price_sort, created_at, seller_name, loc, board_status, trade_type, display_price, owner_user_id, author_profile_image_path
 FROM (
   SELECT
     'board' AS kind,
@@ -47,7 +47,8 @@ FROM (
     b.status AS board_status,
     b.trade_type AS trade_type,
     b.price AS display_price,
-    b.user_id AS owner_user_id
+    b.user_id AS owner_user_id,
+    u.profile_image_path AS author_profile_image_path
   FROM Board b
   INNER JOIN User u ON b.user_id = u.user_id
   WHERE {board_where}
@@ -64,7 +65,8 @@ FROM (
     NULL,
     NULL,
     w.max_price AS display_price,
-    w.user_id AS owner_user_id
+    w.user_id AS owner_user_id,
+    u.profile_image_path AS author_profile_image_path
   FROM WantedPost w
   INNER JOIN User u ON w.user_id = u.user_id
   WHERE {wanted_where}
@@ -79,7 +81,7 @@ def list_feed(
     page: int = Query(1, ge=1),
     page_size: int = Query(12, ge=1, le=48),
     sort: str = Query("latest", description="latest | price_asc | price_desc"),
-    q: str | None = Query(None, description="제목·설명·장소 검색", max_length=_MAX_SEARCH_LEN),
+    q: str | None = Query(None, description="제목·설명·장소·작성자 학과 검색", max_length=_MAX_SEARCH_LEN),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> FeedListResponse:
@@ -89,23 +91,36 @@ def list_feed(
     like_pat = f"%{search_kw}%" if search_kw else None
 
     if user.is_admin:
-        stmt_b = select(func.count()).select_from(Board)
-        stmt_w = select(func.count()).select_from(WantedPost)
         if like_pat is not None:
-            stmt_b = stmt_b.where(
-                or_(
-                    Board.title.like(like_pat),
-                    func.coalesce(Board.description, "").like(like_pat),
-                    func.coalesce(Board.location, "").like(like_pat),
+            stmt_b = (
+                select(func.count())
+                .select_from(Board)
+                .join(seller_b, Board.user_id == seller_b.user_id)
+                .where(
+                    or_(
+                        Board.title.like(like_pat),
+                        func.coalesce(Board.description, "").like(like_pat),
+                        func.coalesce(Board.location, "").like(like_pat),
+                        func.coalesce(seller_b.interest_major, "").like(like_pat),
+                    )
                 )
             )
-            stmt_w = stmt_w.where(
-                or_(
-                    WantedPost.title.like(like_pat),
-                    func.coalesce(WantedPost.description, "").like(like_pat),
-                    func.coalesce(WantedPost.preferred_location, "").like(like_pat),
+            stmt_w = (
+                select(func.count())
+                .select_from(WantedPost)
+                .join(author_w, WantedPost.user_id == author_w.user_id)
+                .where(
+                    or_(
+                        WantedPost.title.like(like_pat),
+                        func.coalesce(WantedPost.description, "").like(like_pat),
+                        func.coalesce(WantedPost.preferred_location, "").like(like_pat),
+                        func.coalesce(author_w.interest_major, "").like(like_pat),
+                    )
                 )
             )
+        else:
+            stmt_b = select(func.count()).select_from(Board)
+            stmt_w = select(func.count()).select_from(WantedPost)
         count_board = db.scalar(stmt_b) or 0
         count_wanted = db.scalar(stmt_w) or 0
         school_sql = "1=1"
@@ -129,6 +144,7 @@ def list_feed(
                     Board.title.like(like_pat),
                     func.coalesce(Board.description, "").like(like_pat),
                     func.coalesce(Board.location, "").like(like_pat),
+                    func.coalesce(seller_b.interest_major, "").like(like_pat),
                 )
             )
             stmt_w = stmt_w.where(
@@ -136,6 +152,7 @@ def list_feed(
                     WantedPost.title.like(like_pat),
                     func.coalesce(WantedPost.description, "").like(like_pat),
                     func.coalesce(WantedPost.preferred_location, "").like(like_pat),
+                    func.coalesce(author_w.interest_major, "").like(like_pat),
                 )
             )
         count_board = db.scalar(stmt_b) or 0
@@ -147,10 +164,12 @@ def list_feed(
         board_where = wanted_where = school_sql
     else:
         search_board = (
-            "(b.title LIKE :search OR IFNULL(b.description,'') LIKE :search OR IFNULL(b.location,'') LIKE :search)"
+            "(b.title LIKE :search OR IFNULL(b.description,'') LIKE :search OR IFNULL(b.location,'') LIKE :search "
+            "OR IFNULL(u.interest_major,'') LIKE :search)"
         )
         search_wanted = (
-            "(w.title LIKE :search OR IFNULL(w.description,'') LIKE :search OR IFNULL(w.preferred_location,'') LIKE :search)"
+            "(w.title LIKE :search OR IFNULL(w.description,'') LIKE :search OR IFNULL(w.preferred_location,'') LIKE :search "
+            "OR IFNULL(u.interest_major,'') LIKE :search)"
         )
         board_where = f"({school_sql}) AND {search_board}"
         wanted_where = f"({school_sql}) AND {search_wanted}"
@@ -181,6 +200,9 @@ def list_feed(
             bid = int(r["board_id"])
             dp = r["display_price"]
             price = int(dp) if dp is not None else None
+            oid_str = str(oid) if oid is not None else None
+            pip = r.get("author_profile_image_path")
+            pip_str = str(pip).strip() if pip is not None and str(pip).strip() else None
             items.append(
                 FeedItemOut(
                     kind="board",
@@ -190,6 +212,8 @@ def list_feed(
                     price=price,
                     created_at=r["created_at"],
                     author_name=r["seller_name"],
+                    author_user_id=oid_str,
+                    author_profile_image_path=pip_str,
                     location=r["loc"],
                     thumbnail_path=thumbs.get(bid),
                     status=r["board_status"],
@@ -203,6 +227,9 @@ def list_feed(
             wid = int(r["wanted_id"])
             dp = r["display_price"]
             price = int(dp) if dp is not None else None
+            oid_str = str(oid) if oid is not None else None
+            pip = r.get("author_profile_image_path")
+            pip_str = str(pip).strip() if pip is not None and str(pip).strip() else None
             items.append(
                 FeedItemOut(
                     kind="wanted",
@@ -212,6 +239,8 @@ def list_feed(
                     price=price,
                     created_at=r["created_at"],
                     author_name=r["seller_name"],
+                    author_user_id=oid_str,
+                    author_profile_image_path=pip_str,
                     location=r["loc"],
                     thumbnail_path=None,
                     status=None,

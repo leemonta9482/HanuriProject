@@ -4,8 +4,9 @@ import type {
   LoginUserInfo,
   RegisterResponse,
   RegisterWithStudentCardPayload,
+  UserProfile,
 } from './types'
-import { apiFetch, authHeadersJson, createFetchAbortSignal, getBaseUrl, parseJsonError } from './client'
+import { apiFetch, authHeaders, authHeadersJson, createFetchAbortSignal, getBaseUrl, parseJsonError } from './client'
 
 export async function registerUser(payload: RegisterWithStudentCardPayload): Promise<RegisterResponse> {
   const form = new FormData()
@@ -55,4 +56,44 @@ export async function fetchCurrentUser(): Promise<LoginUserInfo> {
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return (await res.json()) as LoginUserInfo
+}
+
+export async function fetchUserProfile(): Promise<UserProfile> {
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/me/profile`, {
+    headers: authHeadersJson(),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as UserProfile
+}
+
+export type UpdateProfilePayload = {
+  phone: string
+  interest_major: string | null
+  profile_image?: File | null
+  clear_profile_image?: boolean
+}
+
+export async function updateUserProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
+  const form = new FormData()
+  form.append('phone', payload.phone.trim())
+  form.append('interest_major', payload.interest_major?.trim() ?? '')
+  if (payload.clear_profile_image) form.append('clear_profile_image', '1')
+  if (payload.profile_image) form.append('profile_image', payload.profile_image)
+
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/me/profile`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: form,
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as UserProfile
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/me/password`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
 }

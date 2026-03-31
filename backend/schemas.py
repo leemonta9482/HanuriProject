@@ -24,6 +24,23 @@ class LoginUserInfo(BaseModel):
     name: str
     email: str
     is_admin: bool = False
+    profile_image_path: str | None = None
+
+
+class UserProfileOut(BaseModel):
+    user_id: str
+    name: str
+    email: str
+    school_name: str
+    phone: str
+    interest_major: str | None
+    profile_image_path: str | None
+    is_admin: bool = False
+
+
+class PasswordChangeBody(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class LoginResponse(BaseModel):
@@ -147,6 +164,7 @@ class BoardListItem(BaseModel):
     board_id: int
     user_id: str
     seller_name: str
+    seller_profile_image_path: str | None = None
     title: str
     price: int
     location: str | None
@@ -164,12 +182,15 @@ class BoardListResponse(BaseModel):
     page: int
     page_size: int
     pages: int
+    shop_owner_name: str | None = None
+    shop_owner_profile_image_path: str | None = None
 
 
 class BoardDetailOut(BaseModel):
     board_id: int
     user_id: str
     seller_name: str
+    seller_profile_image_path: str | None = None
     title: str
     price: int
     description: str | None
@@ -261,6 +282,8 @@ class FeedItemOut(BaseModel):
     price: int | None = None
     created_at: object | None = None
     author_name: str
+    author_user_id: str | None = None
+    author_profile_image_path: str | None = None
     location: str | None = None
     thumbnail_path: str | None = None
     status: str | None = None

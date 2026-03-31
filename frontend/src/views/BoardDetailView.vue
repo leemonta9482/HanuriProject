@@ -213,10 +213,45 @@ watch(board, (b) => {
           <span class="chip chip-trade">{{ tradeLabel[board.trade_type] ?? board.trade_type }}</span>
         </div>
         <p class="fav-count">찜 {{ board.favorite_count }}</p>
-        <p class="seller">
+        <div class="seller-block">
           <span class="label">판매자</span>
-          {{ board.seller_name }}
-        </p>
+          <RouterLink
+            v-if="board.is_owner"
+            class="seller-profile"
+            :to="{ name: 'my-shop' }"
+          >
+            <span class="seller-av-wrap">
+              <img
+                v-if="board.seller_profile_image_path"
+                :src="imgUrl(board.seller_profile_image_path)"
+                alt=""
+                class="seller-av"
+              />
+              <span v-else class="seller-av seller-av--ph" aria-hidden="true">{{
+                (board.seller_name || '?').slice(0, 1)
+              }}</span>
+            </span>
+            <span class="seller-name">{{ board.seller_name }}</span>
+          </RouterLink>
+          <RouterLink
+            v-else
+            class="seller-profile"
+            :to="{ name: 'user-shop', params: { userId: board.user_id } }"
+          >
+            <span class="seller-av-wrap">
+              <img
+                v-if="board.seller_profile_image_path"
+                :src="imgUrl(board.seller_profile_image_path)"
+                alt=""
+                class="seller-av"
+              />
+              <span v-else class="seller-av seller-av--ph" aria-hidden="true">{{
+                (board.seller_name || '?').slice(0, 1)
+              }}</span>
+            </span>
+            <span class="seller-name">{{ board.seller_name }}</span>
+          </RouterLink>
+        </div>
         <p v-if="board.location" class="loc">
           <span class="label">거래 장소</span>
           {{ board.location }}
@@ -509,14 +544,14 @@ watch(board, (b) => {
   border: 1px solid var(--color-border);
 }
 
-.seller,
+.seller-block,
 .loc {
   font-size: 0.95rem;
   margin: 0 0 0.5rem;
   line-height: 1.5;
 }
 
-.seller .label,
+.seller-block .label,
 .loc .label {
   display: block;
   font-size: 0.78rem;
@@ -525,6 +560,44 @@ watch(board, (b) => {
   letter-spacing: 0.04em;
   opacity: 0.65;
   margin-bottom: 0.15rem;
+}
+
+.seller-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 10px;
+  padding: 0.25rem 0.35rem;
+  margin: -0.25rem -0.35rem;
+  transition: background 0.15s;
+}
+
+.seller-profile:hover {
+  background: hsla(160, 100%, 37%, 0.12);
+}
+
+.seller-av {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
+
+.seller-av--ph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: var(--color-background-mute);
+  color: var(--color-heading);
+}
+
+.seller-name {
+  font-weight: 600;
 }
 
 .description-block {

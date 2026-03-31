@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
-import { getBaseUrl, notifySessionInvalid } from '@/api/client'
+import { getBaseUrl, notifySessionInvalid, uploadsPublicUrl } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 
 interface LiveToastItem {
@@ -235,7 +235,7 @@ watch(
           type="search"
           name="q"
           maxlength="100"
-          placeholder="제목·설명·장소 검색"
+          placeholder="제목·설명·장소·학과 검색"
           autocomplete="off"
         />
         <button type="submit" class="header-search-btn">검색</button>
@@ -256,9 +256,19 @@ watch(
           <RouterLink to="/my-shop">내 상점</RouterLink>
           <RouterLink to="/chat">채팅</RouterLink>
           <RouterLink v-if="auth.isAdmin" to="/admin/users" class="admin-link">관리자 페이지</RouterLink>
-          <span class="user"
-            >{{ greetingName || '회원' }}님<span v-if="auth.isAdmin" class="badge">관리자</span></span
-          >
+          <RouterLink to="/profile" class="user user-link">
+            <img
+              v-if="auth.user?.profile_image_path?.trim()"
+              :src="uploadsPublicUrl(auth.user.profile_image_path.trim())"
+              alt=""
+              class="nav-avatar"
+              width="28"
+              height="28"
+            />
+            <span class="user-text"
+              >{{ greetingName || '회원' }}님<span v-if="auth.isAdmin" class="badge">관리자</span></span
+            >
+          </RouterLink>
           <button type="button" class="ghost" @click="onLogout">로그아웃</button>
         </template>
         <template v-else>
@@ -434,6 +444,34 @@ watch(
 .user {
   font-size: 0.9rem;
   color: var(--color-text);
+}
+
+.user-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 100%;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  padding: 0.15rem 0.25rem;
+  margin: -0.15rem -0.25rem;
+  transition: background 0.15s;
+}
+
+.user-link:hover {
+  background: hsla(160, 100%, 37%, 0.12);
+}
+
+.nav-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
+
+.user-text {
+  min-width: 0;
 }
 
 .badge {

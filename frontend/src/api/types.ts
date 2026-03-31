@@ -30,6 +30,19 @@ export interface LoginUserInfo {
   name: string
   email: string
   is_admin: boolean
+  profile_image_path?: string | null
+}
+
+/** GET /api/auth/me/profile */
+export interface UserProfile {
+  user_id: string
+  name: string
+  email: string
+  school_name: string
+  phone: string
+  interest_major: string | null
+  profile_image_path: string | null
+  is_admin: boolean
 }
 
 export interface LoginResponse {
@@ -144,6 +157,7 @@ export interface BoardListItem {
   board_id: number
   user_id: string
   seller_name: string
+  seller_profile_image_path?: string | null
   title: string
   price: number
   location: string | null
@@ -161,6 +175,8 @@ export interface BoardListResponse {
   page: number
   page_size: number
   pages: number
+  shop_owner_name?: string | null
+  shop_owner_profile_image_path?: string | null
 }
 
 export interface BoardImage {
@@ -173,6 +189,7 @@ export interface BoardDetail {
   board_id: number
   user_id: string
   seller_name: string
+  seller_profile_image_path?: string | null
   title: string
   price: number
   description: string | null
@@ -229,6 +246,8 @@ export interface FeedItem {
   price: number | null
   created_at?: string | null
   author_name: string
+  author_user_id?: string | null
+  author_profile_image_path?: string | null
   location: string | null
   thumbnail_path: string | null
   status: string | null

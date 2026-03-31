@@ -157,7 +157,7 @@ async function removeBoard(b: AdminBoard) {
       <label class="s search-combo">
         <span>검색</span>
         <div class="search-row">
-          <select v-model="boardSearchBy" class="search-select" aria-label="검색 항목">
+          <select v-model="boardSearchBy" class="select-theme" aria-label="검색 항목">
             <option value="board_id">게시글 번호</option>
             <option value="title">게시글 이름</option>
             <option value="user_id">작성자 아이디</option>
@@ -188,7 +188,7 @@ async function removeBoard(b: AdminBoard) {
       <div class="pager">
         <label class="psize"
           >페이지당
-          <select v-model.number="pageSize" @change="onPageSizeChange">
+          <select v-model.number="pageSize" class="select-theme select-theme--compact" @change="onPageSizeChange">
             <option :value="10">10</option>
             <option :value="20">20</option>
             <option :value="50">50</option>
@@ -256,7 +256,7 @@ async function removeBoard(b: AdminBoard) {
                 <div class="status-row">
                   <select
                     v-model="statusDraft[b.board_id]"
-                    class="select-sm"
+                    class="select-theme select-theme--compact"
                     :disabled="savingId === b.board_id"
                   >
                     <option value="ON_SALE">판매중</option>
@@ -353,13 +353,10 @@ async function removeBoard(b: AdminBoard) {
   gap: 0.5rem;
 }
 
-.psize select {
-  margin-left: 0.35rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
+.pager .psize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .search {
@@ -390,16 +387,8 @@ async function removeBoard(b: AdminBoard) {
   background: var(--color-background);
 }
 
-.search-select {
+.search-row .select-theme {
   flex: 0 0 auto;
-  min-width: 7.5rem;
-  max-width: 42%;
-  padding: 0.5rem 0.45rem;
-  border: none;
-  border-right: 1px solid var(--color-border);
-  background: var(--color-background-mute);
-  color: var(--color-text);
-  font-size: 0.88rem;
 }
 
 .search-input {
@@ -414,7 +403,7 @@ async function removeBoard(b: AdminBoard) {
 }
 
 .search-input:focus,
-.search-select:focus {
+.search-row select:focus {
   outline: none;
 }
 
@@ -609,18 +598,9 @@ async function removeBoard(b: AdminBoard) {
   min-width: 0;
 }
 
-.status-row .select-sm {
+.status-row .select-theme {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.select-sm {
-  padding: 0.35rem 0.45rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
-  font-size: 0.8rem;
 }
 
 .status-label {

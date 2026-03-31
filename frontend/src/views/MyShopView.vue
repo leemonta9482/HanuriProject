@@ -23,6 +23,18 @@ const statusLabel: Record<BoardStatus, string> = {
   SOLD: '거래완료',
 }
 
+const statusSelectClass: Record<BoardStatus, string> = {
+  ON_SALE: 'select-theme--status-on-sale',
+  RESERVED: 'select-theme--status-reserved',
+  SOLD: 'select-theme--status-sold',
+}
+
+const statusBadgeClass: Record<BoardStatus, string> = {
+  ON_SALE: 'badge--on-sale',
+  RESERVED: 'badge--reserved',
+  SOLD: 'badge--sold',
+}
+
 function thumbUrl(path: string | null): string | null {
   if (!path) return null
   return uploadsPublicUrl(path)
@@ -123,7 +135,7 @@ async function removeBoard(it: BoardListItem) {
       <div class="filters-left">
         <label class="filter">
           <span class="filter-label">상태</span>
-          <select v-model="statusFilter" class="filter-select" @change="onFilterChange">
+          <select v-model="statusFilter" class="select-theme" @change="onFilterChange">
             <option value="">전체</option>
             <option value="ON_SALE">판매중</option>
             <option value="RESERVED">예약중</option>
@@ -137,7 +149,7 @@ async function removeBoard(it: BoardListItem) {
       </div>
       <label class="psize">
         <span class="psize-label">페이지당</span>
-        <select v-model.number="pageSize" class="psize-select" @change="onPageSizeChange">
+        <select v-model.number="pageSize" class="select-theme select-theme--compact" @change="onPageSizeChange">
           <option :value="12">12</option>
           <option :value="24">24</option>
           <option :value="48">48</option>
@@ -158,7 +170,7 @@ async function removeBoard(it: BoardListItem) {
             <p class="card-title">{{ it.title }}</p>
             <p class="price">{{ formatPrice(it.price) }}</p>
             <p class="status-line">
-              <span class="badge">{{ statusLabel[it.status] }}</span>
+              <span class="badge" :class="statusBadgeClass[it.status]">{{ statusLabel[it.status] }}</span>
               <span v-if="it.favorite_count > 0" class="fav">♥ {{ it.favorite_count }}</span>
             </p>
           </div>
@@ -168,7 +180,8 @@ async function removeBoard(it: BoardListItem) {
             <span class="sr-only">거래 상태</span>
             <select
               v-model="statusDraft[it.board_id]"
-              class="status-select"
+              class="select-theme select-theme--compact"
+              :class="statusSelectClass[statusDraft[it.board_id] ?? it.status]"
               :disabled="busyId === it.board_id"
               @change="saveStatus(it.board_id)"
             >
@@ -247,16 +260,6 @@ async function removeBoard(it: BoardListItem) {
   white-space: nowrap;
 }
 
-.psize-select {
-  min-width: 4rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
-  font-size: 0.9rem;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -321,14 +324,6 @@ async function removeBoard(it: BoardListItem) {
 
 .filter-label {
   font-size: 0.85rem;
-  color: var(--color-text);
-}
-
-.filter-select {
-  padding: 0.35rem 0.5rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
   color: var(--color-text);
 }
 
@@ -421,8 +416,24 @@ async function removeBoard(it: BoardListItem) {
 .badge {
   padding: 0.1rem 0.4rem;
   border-radius: 6px;
-  background: hsla(160, 100%, 37%, 0.12);
-  color: var(--color-heading);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.badge--on-sale {
+  background: hsla(160, 100%, 30%, 0.92);
+  color: #fff;
+}
+
+.badge--reserved {
+  background: hsla(45, 96%, 48%, 0.95);
+  color: hsl(28, 85%, 16%);
+}
+
+.badge--sold {
+  background: hsla(0, 65%, 44%, 0.95);
+  color: #fff;
 }
 
 .fav {
@@ -441,14 +452,8 @@ async function removeBoard(it: BoardListItem) {
   min-width: 0;
 }
 
-.status-select {
+.status-wrap .select-theme {
   width: 100%;
-  padding: 0.35rem 0.4rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  font-size: 0.82rem;
-  background: var(--color-background);
-  color: var(--color-text);
 }
 
 .btn-sm {

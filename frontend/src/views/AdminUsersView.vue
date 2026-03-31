@@ -176,7 +176,7 @@ function regLabel(s: string) {
       <label class="s search-combo">
         <span>검색</span>
         <div class="search-row">
-          <select v-model="userSearchBy" class="search-select" aria-label="검색 항목">
+          <select v-model="userSearchBy" class="select-theme" aria-label="검색 항목">
             <option value="user_id">아이디</option>
             <option value="name">이름</option>
             <option value="school_name">학교명</option>
@@ -206,7 +206,7 @@ function regLabel(s: string) {
       <div class="pager">
         <label class="psize"
           >페이지당
-          <select v-model.number="pageSize" @change="onPageSizeChange">
+          <select v-model.number="pageSize" class="select-theme select-theme--compact" @change="onPageSizeChange">
             <option :value="10">10</option>
             <option :value="20">20</option>
             <option :value="50">50</option>
@@ -317,7 +317,7 @@ function regLabel(s: string) {
               /></label>
               <label class="f"
                 >가입 승인
-                <select v-model="formRegistrationStatus">
+                <select v-model="formRegistrationStatus" class="select-theme select-theme--block">
                   <option value="PENDING">승인 대기</option>
                   <option value="APPROVED">승인됨</option>
                   <option value="REJECTED">거절</option>
@@ -325,7 +325,7 @@ function regLabel(s: string) {
               </label>
               <label class="f"
                 >계정 상태
-                <select v-model="formAccountStatus">
+                <select v-model="formAccountStatus" class="select-theme select-theme--block">
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="DORMANT">DORMANT</option>
                   <option value="DELETED">DELETED</option>
@@ -439,16 +439,8 @@ function regLabel(s: string) {
   background: var(--color-background);
 }
 
-.search-select {
+.search-row .select-theme {
   flex: 0 0 auto;
-  min-width: 6.5rem;
-  max-width: 40%;
-  padding: 0.5rem 0.45rem;
-  border: none;
-  border-right: 1px solid var(--color-border);
-  background: var(--color-background-mute);
-  color: var(--color-text);
-  font-size: 0.88rem;
 }
 
 .search-input {
@@ -462,7 +454,7 @@ function regLabel(s: string) {
 }
 
 .search-input:focus,
-.search-select:focus {
+.search-row select:focus {
   outline: none;
 }
 
@@ -494,13 +486,10 @@ function regLabel(s: string) {
   gap: 0.5rem;
 }
 
-.psize select {
-  margin-left: 0.35rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
+.pager .psize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .table-wrap {
@@ -692,8 +681,7 @@ function regLabel(s: string) {
   gap: 0.5rem;
 }
 
-.f input,
-.f select {
+.f input {
   padding: 0.45rem 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);

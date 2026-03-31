@@ -123,7 +123,7 @@ function truncate(s: string, n: number) {
     <div class="toolbar-top">
       <label class="filter">
         <span>처리 상태</span>
-        <select v-model="statusFilter" class="select" @change="onFilterChange">
+        <select v-model="statusFilter" class="select-theme" @change="onFilterChange">
           <option value="">전체</option>
           <option value="PENDING">미처리</option>
           <option value="REVIEWED">검토완료</option>
@@ -141,7 +141,7 @@ function truncate(s: string, n: number) {
       <div class="pager">
         <label class="psize"
           >페이지당
-          <select v-model.number="pageSize" @change="onPageSizeChange">
+          <select v-model.number="pageSize" class="select-theme select-theme--compact" @change="onPageSizeChange">
             <option :value="10">10</option>
             <option :value="20">20</option>
             <option :value="50">50</option>
@@ -219,7 +219,7 @@ function truncate(s: string, n: number) {
           </div>
           <label class="modal-field">
             <span>처리 상태</span>
-            <select v-model="formStatus" class="select full">
+            <select v-model="formStatus" class="select-theme select-theme--block">
               <option value="PENDING">미처리</option>
               <option value="REVIEWED">검토완료</option>
               <option value="DISMISSED">기각</option>
@@ -301,19 +301,6 @@ function truncate(s: string, n: number) {
   font-size: 0.8rem;
 }
 
-.select {
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
-  font-size: 0.9rem;
-}
-
-.select.full {
-  width: 100%;
-}
-
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -333,13 +320,10 @@ function truncate(s: string, n: number) {
   gap: 0.5rem;
 }
 
-.psize select {
-  margin-left: 0.35rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
+.psize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .table-wrap {

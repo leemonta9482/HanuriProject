@@ -29,6 +29,7 @@ CREATE TABLE User (
     
     registration_status ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',  -- 가입 승인 상태
     student_id_card_path VARCHAR(512) NOT NULL,   -- 학생증 이미지 저장 경로(서버 기준 상대경로)
+    profile_image_path VARCHAR(512),              -- 프로필 사진(선택, 서버 기준 상대경로)
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

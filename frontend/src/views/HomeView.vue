@@ -59,6 +59,12 @@ function cardKey(it: FeedItem): string {
   return `x-${it.title}`
 }
 
+function authorThumb(it: FeedItem): string | null {
+  const p = it.author_profile_image_path
+  if (!p?.trim()) return null
+  return uploadsPublicUrl(p.trim())
+}
+
 async function onToggleFeedFavorite(it: FeedItem) {
   if (it.kind !== 'board' || it.board_id == null || it.is_owner) return
   if (favBusyBoardId.value === it.board_id) return
@@ -211,7 +217,7 @@ watch(sentinel, (el) => {
       <div class="actions">
         <label v-if="auth.isLoggedIn" class="sort">
           <span class="sr-only">정렬</span>
-          <select v-model="sort" class="select">
+          <select v-model="sort" class="select-theme">
             <option value="latest">최신순</option>
             <option value="price_asc">가격 낮은순</option>
             <option value="price_desc">가격 높은순</option>
@@ -235,7 +241,7 @@ watch(sentinel, (el) => {
       <div class="login-gate-blur" aria-hidden="true">
         <ul class="grid">
           <li v-for="i in mockCardKeys" :key="i" class="card-wrap">
-            <div class="card login-gate-mock-card">
+            <div class="card-mock login-gate-mock-card">
               <div class="thumb login-gate-mock-thumb" />
               <div class="meta">
                 <p class="card-title">중고 상품 제목이 들어갑니다</p>
@@ -260,48 +266,69 @@ watch(sentinel, (el) => {
 
     <ul v-else class="grid" aria-label="거래 목록">
       <li v-for="it in items" :key="cardKey(it)" class="card-wrap">
-        <RouterLink :to="itemLink(it)" class="card">
-          <div class="thumb" :class="{ empty: !it.thumbnail_path }">
-            <img v-if="thumbUrl(it.thumbnail_path)" :src="thumbUrl(it.thumbnail_path)!" alt="" />
-            <span v-else class="ph">{{ it.kind === 'wanted' ? '구매 희망글' : '이미지 없음' }}</span>
-            <span
-              v-if="it.kind === 'board' && it.status"
-              class="badge-status"
-              :class="{
-                'badge-status--on-sale': it.status === 'ON_SALE',
-                'badge-status--reserved': it.status === 'RESERVED',
-                'badge-status--sold': it.status === 'SOLD',
-              }"
-            >{{ statusLabel[it.status] ?? it.status }}</span>
-            <span v-if="it.kind === 'wanted'" class="badge-kind">구매 희망</span>
-            <button
-              v-if="it.kind === 'board' && it.board_id != null && !it.is_owner"
-              type="button"
-              class="thumb-fav"
-              :class="{ 'thumb-fav--on': it.is_favorited }"
-              :disabled="favBusyBoardId === it.board_id"
-              :aria-pressed="it.is_favorited"
-              :aria-label="it.is_favorited ? '찜 해제' : '찜하기'"
-              @click.stop.prevent="onToggleFeedFavorite(it)"
-            >
-              <span class="thumb-fav-count">{{ it.favorite_count }}</span>
-              <span class="thumb-fav-icon" aria-hidden="true">{{ it.is_favorited ? '♥' : '♡' }}</span>
-            </button>
-            <div
-              v-else-if="it.kind === 'board' && it.board_id != null && it.is_owner"
-              class="thumb-fav thumb-fav--static"
-              title="내가 올린 글은 찜할 수 없습니다"
-            >
-              <span class="thumb-fav-count">{{ it.favorite_count }}</span>
-              <span class="thumb-fav-icon" aria-hidden="true">♡</span>
+        <div class="card card--feed">
+          <RouterLink :to="itemLink(it)" class="card-link">
+            <div class="thumb" :class="{ empty: !it.thumbnail_path }">
+              <img v-if="thumbUrl(it.thumbnail_path)" :src="thumbUrl(it.thumbnail_path)!" alt="" />
+              <span v-else class="ph">{{ it.kind === 'wanted' ? '구매 희망글' : '이미지 없음' }}</span>
+              <span
+                v-if="it.kind === 'board' && it.status"
+                class="badge-status"
+                :class="{
+                  'badge-status--on-sale': it.status === 'ON_SALE',
+                  'badge-status--reserved': it.status === 'RESERVED',
+                  'badge-status--sold': it.status === 'SOLD',
+                }"
+              >{{ statusLabel[it.status] ?? it.status }}</span>
+              <span v-if="it.kind === 'wanted'" class="badge-kind">구매 희망</span>
+              <button
+                v-if="it.kind === 'board' && it.board_id != null && !it.is_owner"
+                type="button"
+                class="thumb-fav"
+                :class="{ 'thumb-fav--on': it.is_favorited }"
+                :disabled="favBusyBoardId === it.board_id"
+                :aria-pressed="it.is_favorited"
+                :aria-label="it.is_favorited ? '찜 해제' : '찜하기'"
+                @click.stop.prevent="onToggleFeedFavorite(it)"
+              >
+                <span class="thumb-fav-count">{{ it.favorite_count }}</span>
+                <span class="thumb-fav-icon" aria-hidden="true">{{ it.is_favorited ? '♥' : '♡' }}</span>
+              </button>
+              <div
+                v-else-if="it.kind === 'board' && it.board_id != null && it.is_owner"
+                class="thumb-fav thumb-fav--static"
+                title="내가 올린 글은 찜할 수 없습니다"
+              >
+                <span class="thumb-fav-count">{{ it.favorite_count }}</span>
+                <span class="thumb-fav-icon" aria-hidden="true">♡</span>
+              </div>
             </div>
+            <div class="meta">
+              <p class="card-title">{{ it.title }}</p>
+              <p class="price">{{ formatPrice(it.price) }}</p>
+              <p class="sub">{{ it.location || '장소 미정' }}</p>
+            </div>
+          </RouterLink>
+          <div v-if="it.author_user_id" class="seller-bar">
+            <RouterLink
+              :to="
+                it.is_owner
+                  ? { name: 'my-shop' }
+                  : { name: 'user-shop', params: { userId: it.author_user_id } }
+              "
+              class="seller-chip"
+              @click.stop
+            >
+              <span class="seller-av-wrap">
+                <img v-if="authorThumb(it)" :src="authorThumb(it)!" alt="" class="seller-av" />
+                <span v-else class="seller-av seller-av--ph" aria-hidden="true">{{
+                  (it.author_name || '?').slice(0, 1)
+                }}</span>
+              </span>
+              <span class="seller-name">{{ it.author_name }}</span>
+            </RouterLink>
           </div>
-          <div class="meta">
-            <p class="card-title">{{ it.title }}</p>
-            <p class="price">{{ formatPrice(it.price) }}</p>
-            <p class="sub">{{ it.author_name }} · {{ it.location || '장소 미정' }}</p>
-          </div>
-        </RouterLink>
+        </div>
       </li>
     </ul>
 
@@ -346,15 +373,6 @@ watch(sentinel, (el) => {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
-}
-
-.sort .select {
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
-  font-size: 0.95rem;
 }
 
 .btn {
@@ -444,10 +462,18 @@ watch(sentinel, (el) => {
   min-width: 0;
 }
 
-.card {
+.card-mock {
   display: block;
-  text-decoration: none;
-  color: inherit;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  height: 100%;
+}
+
+.card--feed {
+  display: flex;
+  flex-direction: column;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -458,9 +484,68 @@ watch(sentinel, (el) => {
     transform 0.15s;
 }
 
-.card:hover {
+.card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.card--feed:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
+}
+
+.seller-bar {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  padding: 0.4rem 0.55rem;
+  background: var(--color-background);
+}
+
+.seller-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  text-decoration: none;
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 8px;
+  padding: 0.15rem 0.2rem;
+  margin: -0.15rem -0.2rem;
+  transition: background 0.15s;
+}
+
+.seller-chip:hover {
+  background: hsla(160, 100%, 37%, 0.12);
+}
+
+.seller-av {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.seller-av--ph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--color-background-mute);
+  color: var(--color-heading);
+}
+
+.seller-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .thumb {
@@ -653,7 +738,7 @@ watch(sentinel, (el) => {
 }
 
 .login-gate-blur .login-gate-mock-thumb {
-  background:rgb(184, 184, 184;)
+  background:rgb(184, 184, 184)
 }
 
 .login-gate-float {

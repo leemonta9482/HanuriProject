@@ -85,6 +85,7 @@ def list_boards(
     page_size: int = Query(12, ge=1, le=48),
     sort: str = Query("latest", description="latest | price_asc | price_desc"),
     status_filter: str | None = Query(None, alias="status"),
+    seller_id: str | None = Query(None, description="특정 판매자의 판매글만"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> BoardListResponse:
@@ -94,13 +95,26 @@ def list_boards(
         count_q = count_q.where(seller.school_name == user.school_name)
     if status_filter in ("ON_SALE", "RESERVED", "SOLD"):
         count_q = count_q.where(Board.status == status_filter)
+
+    seller_target: User | None = None
+    if seller_id and seller_id.strip():
+        sid = seller_id.strip()
+        seller_target = db.get(User, sid)
+        if seller_target is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
+        if not user.is_admin and seller_target.school_name != user.school_name:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
+        count_q = count_q.where(Board.user_id == sid)
+
     total = db.scalar(count_q) or 0
 
-    stmt = select(Board, seller.name).join(seller, Board.user_id == seller.user_id)
+    stmt = select(Board, seller.name, seller.profile_image_path).join(seller, Board.user_id == seller.user_id)
     if not user.is_admin:
         stmt = stmt.where(seller.school_name == user.school_name)
     if status_filter in ("ON_SALE", "RESERVED", "SOLD"):
         stmt = stmt.where(Board.status == status_filter)
+    if seller_target is not None:
+        stmt = stmt.where(Board.user_id == seller_target.user_id)
     pages = ceil(total / page_size) if total else 0
     offset = (page - 1) * page_size
 
@@ -112,18 +126,20 @@ def list_boards(
         stmt = stmt.order_by(desc(Board.created_at))
 
     rows = db.execute(stmt.offset(offset).limit(page_size)).all()
-    board_ids = [b.board_id for b, _ in rows]
+    board_ids = [b.board_id for b, _, _ in rows]
     thumbs = _first_thumbnails(db, board_ids)
     favs = _favorited_ids(db, user.user_id, board_ids)
     fav_counts = _favorite_counts(db, board_ids)
 
     items: list[BoardListItem] = []
-    for b, seller_name in rows:
+    for b, seller_name, seller_pip in rows:
+        sn = (seller_name or "").strip() if isinstance(seller_name, str) else ""
         items.append(
             BoardListItem(
                 board_id=b.board_id,
                 user_id=b.user_id,
-                seller_name=seller_name,
+                seller_name=sn or "회원",
+                seller_profile_image_path=seller_pip if isinstance(seller_pip, str) else None,
                 title=b.title,
                 price=b.price,
                 location=b.location,
@@ -135,12 +151,19 @@ def list_boards(
                 favorite_count=fav_counts.get(b.board_id, 0),
             )
         )
+    shop_owner_name = None
+    shop_owner_profile_image_path = None
+    if seller_target is not None:
+        shop_owner_name = (seller_target.name or "").strip() or seller_target.user_id
+        shop_owner_profile_image_path = seller_target.profile_image_path
     return BoardListResponse(
         items=items,
         total=total,
         page=page,
         page_size=page_size,
         pages=pages,
+        shop_owner_name=shop_owner_name,
+        shop_owner_profile_image_path=shop_owner_profile_image_path,
     )
 
 
@@ -149,6 +172,7 @@ def _board_detail_out(
     board: Board,
     seller_name: str,
     viewer: User | None,
+    seller_profile_image_path: str | None = None,
 ) -> BoardDetailOut:
     imgs = sorted(board.images, key=lambda x: x.sort_order)
     image_out = [BoardImageOut.model_validate(i) for i in imgs]
@@ -179,6 +203,7 @@ def _board_detail_out(
         board_id=board.board_id,
         user_id=board.user_id,
         seller_name=seller_name,
+        seller_profile_image_path=seller_profile_image_path,
         title=board.title,
         price=board.price,
         description=board.description,
@@ -211,7 +236,13 @@ def get_board(
     _assert_same_school_board(db, board, viewer)
     seller = db.get(User, board.user_id)
     seller_name = seller.name if seller else ""
-    return _board_detail_out(db, board, seller_name, viewer)
+    return _board_detail_out(
+        db,
+        board,
+        seller_name,
+        viewer,
+        seller_profile_image_path=seller.profile_image_path if seller else None,
+    )
 
 
 @router.post("/boards", response_model=BoardDetailOut)
@@ -250,7 +281,7 @@ async def create_board(
     db.commit()
     db.refresh(board)
     _ = board.images
-    return _board_detail_out(db, board, user.name, user)
+    return _board_detail_out(db, board, user.name, user, seller_profile_image_path=user.profile_image_path)
 
 
 @router.patch("/boards/{board_id}", response_model=BoardDetailOut)
@@ -272,7 +303,13 @@ def update_board(
     db.refresh(board)
     _ = board.images
     seller = db.get(User, board.user_id)
-    return _board_detail_out(db, board, seller.name if seller else "", user)
+    return _board_detail_out(
+        db,
+        board,
+        seller.name if seller else "",
+        user,
+        seller_profile_image_path=seller.profile_image_path if seller else None,
+    )
 
 
 @router.patch("/boards/{board_id}/status", response_model=BoardDetailOut)
@@ -292,7 +329,13 @@ def update_board_status(
     db.refresh(board)
     _ = board.images
     seller = db.get(User, board.user_id)
-    return _board_detail_out(db, board, seller.name if seller else "", user)
+    return _board_detail_out(
+        db,
+        board,
+        seller.name if seller else "",
+        user,
+        seller_profile_image_path=seller.profile_image_path if seller else None,
+    )
 
 
 @router.delete("/boards/{board_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -340,7 +383,13 @@ async def add_board_images(
     db.refresh(board)
     _ = board.images
     seller = db.get(User, board.user_id)
-    return _board_detail_out(db, board, seller.name if seller else "", user)
+    return _board_detail_out(
+        db,
+        board,
+        seller.name if seller else "",
+        user,
+        seller_profile_image_path=seller.profile_image_path if seller else None,
+    )
 
 
 @router.delete("/boards/{board_id}/images/{image_id}", response_model=BoardDetailOut)
@@ -364,7 +413,13 @@ def delete_board_image(
     db.refresh(board)
     _ = board.images
     seller = db.get(User, board.user_id)
-    return _board_detail_out(db, board, seller.name if seller else "", user)
+    return _board_detail_out(
+        db,
+        board,
+        seller.name if seller else "",
+        user,
+        seller_profile_image_path=seller.profile_image_path if seller else None,
+    )
 
 
 @router.post("/boards/{board_id}/favorite", response_model=BoardDetailOut)
@@ -403,7 +458,13 @@ def add_favorite(
     db.refresh(board)
     _ = board.images
     seller = db.get(User, board.user_id)
-    return _board_detail_out(db, board, seller.name if seller else "", user)
+    return _board_detail_out(
+        db,
+        board,
+        seller.name if seller else "",
+        user,
+        seller_profile_image_path=seller.profile_image_path if seller else None,
+    )
 
 
 @router.delete("/boards/{board_id}/favorite", response_model=BoardDetailOut)
@@ -425,7 +486,13 @@ def remove_favorite(
     db.refresh(board)
     _ = board.images
     seller = db.get(User, board.user_id)
-    return _board_detail_out(db, board, seller.name if seller else "", user)
+    return _board_detail_out(
+        db,
+        board,
+        seller.name if seller else "",
+        user,
+        seller_profile_image_path=seller.profile_image_path if seller else None,
+    )
 
 
 @router.get("/me/favorites", response_model=BoardListResponse)
@@ -437,7 +504,7 @@ def list_my_favorites(
 ) -> BoardListResponse:
     seller = aliased(User)
     stmt = (
-        select(Board, seller.name)
+        select(Board, seller.name, seller.profile_image_path)
         .join(Favorite, Favorite.board_id == Board.board_id)
         .join(seller, Board.user_id == seller.user_id)
         .where(Favorite.user_id == user.user_id)
@@ -457,18 +524,19 @@ def list_my_favorites(
     pages = ceil(total / page_size) if total else 0
     offset = (page - 1) * page_size
     rows = db.execute(stmt.offset(offset).limit(page_size)).all()
-    board_ids = [b.board_id for b, _ in rows]
+    board_ids = [b.board_id for b, _, _ in rows]
     thumbs = _first_thumbnails(db, board_ids)
     favs = _favorited_ids(db, user.user_id, board_ids)
     fav_counts = _favorite_counts(db, board_ids)
     items = []
-    for b, seller_name in rows:
+    for b, seller_name, seller_pip in rows:
         sn = (seller_name or "").strip() if isinstance(seller_name, str) else (str(seller_name).strip() if seller_name else "")
         items.append(
             BoardListItem(
                 board_id=b.board_id,
                 user_id=b.user_id,
                 seller_name=sn or "회원",
+                seller_profile_image_path=seller_pip if isinstance(seller_pip, str) else None,
                 title=b.title,
                 price=b.price,
                 location=b.location,
@@ -500,7 +568,7 @@ def list_my_boards(
     """내가 작성한 판매글만 조회 (내 상점)."""
     seller = aliased(User)
     stmt = (
-        select(Board, seller.name)
+        select(Board, seller.name, seller.profile_image_path)
         .join(seller, Board.user_id == seller.user_id)
         .where(Board.user_id == user.user_id)
     )
@@ -516,13 +584,13 @@ def list_my_boards(
 
     stmt = stmt.order_by(desc(Board.created_at)).offset(offset).limit(page_size)
     rows = db.execute(stmt).all()
-    board_ids = [b.board_id for b, _ in rows]
+    board_ids = [b.board_id for b, _, _ in rows]
     thumbs = _first_thumbnails(db, board_ids)
     favs = _favorited_ids(db, user.user_id, board_ids)
     fav_counts = _favorite_counts(db, board_ids)
 
     items: list[BoardListItem] = []
-    for b, seller_name in rows:
+    for b, seller_name, seller_pip in rows:
         sn = (
             (seller_name or "").strip()
             if isinstance(seller_name, str)
@@ -533,6 +601,7 @@ def list_my_boards(
                 board_id=b.board_id,
                 user_id=b.user_id,
                 seller_name=sn or "회원",
+                seller_profile_image_path=seller_pip if isinstance(seller_pip, str) else None,
                 title=b.title,
                 price=b.price,
                 location=b.location,

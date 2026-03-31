@@ -1,4 +1,5 @@
 @import './base.css';
+@import './select-theme.css';
 
 #app {
   max-width: 1400px;

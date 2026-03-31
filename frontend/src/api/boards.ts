@@ -14,12 +14,15 @@ export async function fetchBoards(params: {
   page_size?: number
   sort?: BoardSort
   status?: string
+  /** 특정 사용자의 판매글만 */
+  seller_id?: string
 }): Promise<BoardListResponse> {
   const sp = new URLSearchParams()
   if (params.page) sp.set('page', String(params.page))
   if (params.page_size) sp.set('page_size', String(params.page_size))
   if (params.sort) sp.set('sort', params.sort)
   if (params.status) sp.set('status', params.status)
+  if (params.seller_id?.trim()) sp.set('seller_id', params.seller_id.trim())
   const q = sp.toString()
   const res = await apiFetch(`${getBaseUrl()}/api/boards${q ? `?${q}` : ''}`, {
     headers: authHeadersJson(),

@@ -18,6 +18,10 @@ function loadStoredUser(): LoginUserInfo | null {
       name: typeof u.name === 'string' ? u.name.trim() : '',
       email: u.email,
       is_admin: Boolean(u.is_admin),
+      profile_image_path:
+        typeof u.profile_image_path === 'string' && u.profile_image_path.trim()
+          ? u.profile_image_path.trim()
+          : null,
     }
   } catch {
     return null

@@ -45,6 +45,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/shop/:userId',
+      name: 'user-shop',
+      component: () => import('../views/UserShopView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('../views/ProfileEditView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/chat',
       name: 'chat',
       component: () => import('../views/ChatView.vue'),

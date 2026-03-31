@@ -33,6 +33,7 @@ class User(Base):
         default="PENDING",
     )
     student_id_card_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    profile_image_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at: Mapped[object] = mapped_column(
         TIMESTAMP,
