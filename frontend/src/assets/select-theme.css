@@ -1,0 +1,165 @@
+/**
+ * 통일 셀렉트: 녹색 pill, 흰 글씨, 화살표 아이콘
+ * 사용: <select class="select-theme"> + 필요 시 modifier
+ */
+
+/* ----- 기본 ----- */
+select.select-theme {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 9.5rem;
+  padding: 0.5rem 2.15rem 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid hsla(160, 100%, 28%, 1);
+  background-color: hsla(160, 100%, 32%, 1);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 8.2L1.2 3.4h9.6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 11px auto;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  transition:
+    filter 0.15s,
+    box-shadow 0.15s;
+  font-family: inherit;
+}
+
+select.select-theme:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+select.select-theme:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--color-background),
+    0 0 0 4px hsla(160, 100%, 45%, 0.65);
+}
+
+select.select-theme:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* 드롭다운 항목 (브라우저/OS마다 적용 범위 다름) */
+select.select-theme option {
+  background: hsl(160, 14%, 18%);
+  color: #fff;
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.9rem;
+  line-height: 1.5;
+}
+
+/* ----- 폼 전체 너비 (글 작성·수정·관리자 모달) ----- */
+select.select-theme.select-theme--block {
+  width: 100%;
+  min-width: 0;
+  border-radius: 10px;
+  display: block;
+  padding: 0.65rem 2.35rem 0.65rem 0.85rem;
+  background-position: right 0.85rem center;
+  line-height: 1.5;
+}
+
+select.select-theme.select-theme--block option {
+  padding: 0.55rem 0.95rem;
+  line-height: 1.55;
+}
+
+/* ----- 좁은 공간: 내 상점 카드·관리자 테이블 ----- */
+select.select-theme.select-theme--compact {
+  min-width: 0;
+  padding: 0.38rem 1.85rem 0.38rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 8px;
+  background-position: right 0.5rem center;
+  background-size: 10px auto;
+}
+
+/* ----- 거래 상태 (내 상점 등, 홈 썸네일 뱃지와 동일 톤) ----- */
+select.select-theme.select-theme--status-on-sale {
+  background-color: hsla(160, 100%, 30%, 1);
+  border-color: hsla(160, 100%, 22%, 1);
+  color: #fff;
+}
+
+select.select-theme.select-theme--status-on-sale:focus {
+  box-shadow:
+    0 0 0 2px var(--color-background),
+    0 0 0 4px hsla(160, 100%, 45%, 0.65);
+}
+
+select.select-theme.select-theme--status-reserved {
+  background-color: hsla(45, 96%, 48%, 1);
+  border-color: hsla(38, 85%, 38%, 1);
+  color: hsl(28, 85%, 16%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2328180f' d='M6 8.2L1.2 3.4h9.6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 10px auto;
+}
+
+select.select-theme.select-theme--status-reserved:focus {
+  box-shadow:
+    0 0 0 2px var(--color-background),
+    0 0 0 4px hsla(45, 90%, 42%, 0.55);
+}
+
+select.select-theme.select-theme--status-sold {
+  background-color: hsla(0, 65%, 44%, 1);
+  border-color: hsla(0, 65%, 32%, 1);
+  color: #fff;
+}
+
+select.select-theme.select-theme--status-sold:focus {
+  box-shadow:
+    0 0 0 2px var(--color-background),
+    0 0 0 4px hsla(0, 65%, 52%, 0.55);
+}
+
+/* 드롭다운 항목: 상태값별 (열었을 때도 게시글 뱃지와 같은 톤) */
+select.select-theme option[value='ON_SALE'] {
+  background: hsla(160, 100%, 30%, 0.95);
+  color: #fff;
+}
+
+select.select-theme option[value='RESERVED'] {
+  background: hsla(45, 96%, 48%, 1);
+  color: hsl(28, 85%, 16%);
+}
+
+select.select-theme option[value='SOLD'] {
+  background: hsla(0, 65%, 44%, 1);
+  color: #fff;
+}
+
+/* ----- 검색 바 왼쪽(검색어 입력과 이어짐) ----- */
+.search-row select.select-theme {
+  border-radius: 8px 0 0 8px;
+  min-width: 7.5rem;
+  max-width: 42%;
+  border-right: 1px solid hsla(160, 100%, 22%, 1);
+  box-shadow: none;
+}
+
+.search-row select.select-theme:hover {
+  filter: brightness(1.06);
+}
+
+.search-row select.select-theme:focus {
+  box-shadow: none;
+  z-index: 1;
+  position: relative;
+}
+
+/* ----- 페이저 "페이지당" ----- */
+.pager .psize select.select-theme {
+  min-width: 4.25rem;
+}

@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { loginUser } from '@/api/auth'
+import { fetchCurrentUser, loginUser } from '@/api/auth'
 import type { LoginUserInfo } from '@/api/types'
 
 const TOKEN_KEY = 'hanuri_token'
@@ -12,12 +12,16 @@ function loadStoredUser(): LoginUserInfo | null {
     const raw = localStorage.getItem(USER_KEY)
     if (!raw) return null
     const u = JSON.parse(raw) as Partial<LoginUserInfo>
-    if (!u.user_id || !u.name || !u.email) return null
+    if (!u.user_id || !u.email) return null
     return {
       user_id: u.user_id,
-      name: u.name,
+      name: typeof u.name === 'string' ? u.name.trim() : '',
       email: u.email,
       is_admin: Boolean(u.is_admin),
+      profile_image_path:
+        typeof u.profile_image_path === 'string' && u.profile_image_path.trim()
+          ? u.profile_image_path.trim()
+          : null,
     }
   } catch {
     return null
@@ -50,5 +54,17 @@ export const useAuthStore = defineStore('auth', () => {
     setSession(data.access_token, data.user)
   }
 
-  return { token, user, isLoggedIn, isAdmin, setSession, logout, login }
+  /** 토큰이 있으면 서버에서 최신 프로필(이름 등)을 받아 저장합니다. */
+  async function hydrateFromServer() {
+    const t = token.value ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    try {
+      const u = await fetchCurrentUser()
+      setSession(t, u)
+    } catch {
+      logout()
+    }
+  }
+
+  return { token, user, isLoggedIn, isAdmin, setSession, logout, login, hydrateFromServer }
 })

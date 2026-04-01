@@ -1,7 +1,8 @@
 @import './base.css';
+@import './select-theme.css';
 
 #app {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 1.5rem;
   min-height: 100vh;

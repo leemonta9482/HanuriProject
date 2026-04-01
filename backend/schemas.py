@@ -24,6 +24,23 @@ class LoginUserInfo(BaseModel):
     name: str
     email: str
     is_admin: bool = False
+    profile_image_path: str | None = None
+
+
+class UserProfileOut(BaseModel):
+    user_id: str
+    name: str
+    email: str
+    school_name: str
+    phone: str
+    interest_major: str | None
+    profile_image_path: str | None
+    is_admin: bool = False
+
+
+class PasswordChangeBody(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class LoginResponse(BaseModel):
@@ -95,3 +112,231 @@ class AdminBoardListResponse(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+class AdminBoardUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=200)
+    price: int | None = Field(None, ge=0)
+    status: Literal["ON_SALE", "RESERVED", "SOLD"] | None = None
+    trade_type: Literal["DIRECT", "DELIVERY", "BOTH"] | None = None
+
+
+class AdminReportOut(BaseModel):
+    report_id: int
+    board_id: int
+    board_title: str
+    seller_id: str
+    reporter_id: str
+    reporter_name: str
+    reason: str
+    status: str
+    created_at: object | None = None
+    reviewed_at: object | None = None
+    reviewed_by: str | None = None
+    reviewer_name: str | None = None
+    admin_note: str | None = None
+
+
+class AdminReportListResponse(BaseModel):
+    items: list[AdminReportOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+class AdminReportUpdate(BaseModel):
+    status: Literal["PENDING", "REVIEWED", "DISMISSED", "ACTION_TAKEN"] | None = None
+    admin_note: str | None = Field(None, max_length=2000)
+
+
+# --- Marketplace (판매 게시글) ---
+
+class BoardImageOut(BaseModel):
+    image_id: int
+    path: str
+    sort_order: int
+
+    model_config = {"from_attributes": True}
+
+
+class BoardListItem(BaseModel):
+    board_id: int
+    user_id: str
+    seller_name: str
+    seller_profile_image_path: str | None = None
+    title: str
+    price: int
+    location: str | None
+    trade_type: str
+    status: str
+    thumbnail_path: str | None
+    created_at: object | None = None
+    is_favorited: bool = False
+    favorite_count: int = 0
+
+
+class BoardListResponse(BaseModel):
+    items: list[BoardListItem]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+    shop_owner_name: str | None = None
+    shop_owner_profile_image_path: str | None = None
+
+
+class BoardDetailOut(BaseModel):
+    board_id: int
+    user_id: str
+    seller_name: str
+    seller_profile_image_path: str | None = None
+    title: str
+    price: int
+    description: str | None
+    location: str | None
+    trade_type: str
+    status: str
+    images: list[BoardImageOut]
+    created_at: object | None = None
+    updated_at: object | None = None
+    is_favorited: bool = False
+    is_owner: bool = False
+    my_purchase_request_status: str | None = None
+    favorite_count: int = 0
+
+
+class BoardUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=200)
+    price: int | None = Field(None, ge=0)
+    description: str | None = None
+    location: str | None = Field(None, max_length=255)
+    trade_type: Literal["DIRECT", "DELIVERY", "BOTH"] | None = None
+
+
+class BoardStatusUpdate(BaseModel):
+    status: Literal["ON_SALE", "RESERVED", "SOLD"]
+
+
+class PurchaseRequestOut(BaseModel):
+    id: int
+    board_id: int
+    buyer_id: str
+    buyer_name: str
+    status: str
+    created_at: object | None = None
+
+
+class PurchaseRequestStatusUpdate(BaseModel):
+    status: Literal["ACCEPTED", "REJECTED"]
+
+
+class ReportCreate(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=2000)
+
+
+class WantedPostOut(BaseModel):
+    wanted_id: int
+    user_id: str
+    author_name: str
+    title: str
+    description: str | None
+    max_price: int | None
+    preferred_location: str | None
+    created_at: object | None = None
+    updated_at: object | None = None
+    is_owner: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class WantedPostCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str | None = None
+    max_price: int | None = Field(None, ge=0)
+    preferred_location: str | None = Field(None, max_length=255)
+
+
+class WantedPostUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    max_price: int | None = Field(None, ge=0)
+    preferred_location: str | None = Field(None, max_length=255)
+
+
+class WantedListResponse(BaseModel):
+    items: list[WantedPostOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+class FeedItemOut(BaseModel):
+    """홈 거래 피드: 판매글(board) + 구매 희망글(wanted) 통합."""
+
+    kind: Literal["board", "wanted"]
+    board_id: int | None = None
+    wanted_id: int | None = None
+    title: str
+    price: int | None = None
+    created_at: object | None = None
+    author_name: str
+    author_user_id: str | None = None
+    author_profile_image_path: str | None = None
+    location: str | None = None
+    thumbnail_path: str | None = None
+    status: str | None = None
+    trade_type: str | None = None
+    is_favorited: bool = False
+    favorite_count: int = 0
+    is_owner: bool = False
+
+
+class FeedListResponse(BaseModel):
+    items: list[FeedItemOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+# --- Chat (거래 1:1) ---
+
+
+class OpenChatRoomRequest(BaseModel):
+    kind: Literal["board", "wanted"]
+    board_id: int | None = None
+    wanted_id: int | None = None
+
+
+class ChatRoomOpenOut(BaseModel):
+    room_id: int
+
+
+class ChatRoomSummaryOut(BaseModel):
+    room_id: int
+    listing_kind: Literal["board", "wanted"]
+    peer_user_id: str
+    peer_name: str
+    listing_title: str
+    listing_price: int | None
+    thumbnail_path: str | None = None
+    last_message_preview: str | None = None
+    last_message_at: object | None = None
+    closed_at: object | None = None
+
+
+class ChatMessageOut(BaseModel):
+    message_id: int
+    sender_id: str
+    body: str
+    created_at: object | None = None
+
+
+class ChatMessagesResponse(BaseModel):
+    messages: list[ChatMessageOut]
+
+
+class SendChatMessageRequest(BaseModel):
+    body: str = Field(..., min_length=1, max_length=2000)

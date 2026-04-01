@@ -30,6 +30,19 @@ export interface LoginUserInfo {
   name: string
   email: string
   is_admin: boolean
+  profile_image_path?: string | null
+}
+
+/** GET /api/auth/me/profile */
+export interface UserProfile {
+  user_id: string
+  name: string
+  email: string
+  school_name: string
+  phone: string
+  interest_major: string | null
+  profile_image_path: string | null
+  is_admin: boolean
 }
 
 export interface LoginResponse {
@@ -96,4 +109,188 @@ export interface AdminBoardListResponse {
   page: number
   page_size: number
   pages: number
+}
+
+export interface AdminBoardUpdatePayload {
+  title?: string
+  price?: number
+  status?: 'ON_SALE' | 'RESERVED' | 'SOLD'
+  trade_type?: 'DIRECT' | 'DELIVERY' | 'BOTH'
+}
+
+export type AdminReportStatus = 'PENDING' | 'REVIEWED' | 'DISMISSED' | 'ACTION_TAKEN'
+
+export interface AdminReport {
+  report_id: number
+  board_id: number
+  board_title: string
+  seller_id: string
+  reporter_id: string
+  reporter_name: string
+  reason: string
+  status: AdminReportStatus
+  created_at?: string | null
+  reviewed_at?: string | null
+  reviewed_by?: string | null
+  reviewer_name?: string | null
+  admin_note?: string | null
+}
+
+export interface AdminReportListResponse {
+  items: AdminReport[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface AdminReportUpdatePayload {
+  status?: AdminReportStatus
+  admin_note?: string | null
+}
+
+/** 판매 게시판 */
+export type TradeType = 'DIRECT' | 'DELIVERY' | 'BOTH'
+export type BoardStatus = 'ON_SALE' | 'RESERVED' | 'SOLD'
+
+export interface BoardListItem {
+  board_id: number
+  user_id: string
+  seller_name: string
+  seller_profile_image_path?: string | null
+  title: string
+  price: number
+  location: string | null
+  trade_type: TradeType
+  status: BoardStatus
+  thumbnail_path: string | null
+  created_at?: string | null
+  is_favorited: boolean
+  favorite_count: number
+}
+
+export interface BoardListResponse {
+  items: BoardListItem[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+  shop_owner_name?: string | null
+  shop_owner_profile_image_path?: string | null
+}
+
+export interface BoardImage {
+  image_id: number
+  path: string
+  sort_order: number
+}
+
+export interface BoardDetail {
+  board_id: number
+  user_id: string
+  seller_name: string
+  seller_profile_image_path?: string | null
+  title: string
+  price: number
+  description: string | null
+  location: string | null
+  trade_type: TradeType
+  status: BoardStatus
+  images: BoardImage[]
+  created_at?: string | null
+  updated_at?: string | null
+  is_favorited: boolean
+  is_owner: boolean
+  my_purchase_request_status: string | null
+  favorite_count: number
+}
+
+export interface BoardUpdatePayload {
+  title?: string
+  price?: number
+  description?: string | null
+  location?: string | null
+  trade_type?: TradeType
+}
+
+export interface PurchaseRequest {
+  id: number
+  board_id: number
+  buyer_id: string
+  buyer_name: string
+  status: string
+  created_at?: string | null
+}
+
+export interface WantedPost {
+  wanted_id: number
+  user_id: string
+  author_name: string
+  title: string
+  description: string | null
+  max_price: number | null
+  preferred_location: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  is_owner: boolean
+}
+
+/** 홈 피드: 판매 + 구매 희망 */
+export type FeedKind = 'board' | 'wanted'
+
+export interface FeedItem {
+  kind: FeedKind
+  board_id: number | null
+  wanted_id: number | null
+  title: string
+  price: number | null
+  created_at?: string | null
+  author_name: string
+  author_user_id?: string | null
+  author_profile_image_path?: string | null
+  location: string | null
+  thumbnail_path: string | null
+  status: string | null
+  trade_type: string | null
+  is_favorited: boolean
+  favorite_count: number
+  /** 판매글: 본인 게시글 여부 (찜 버튼 비활성) */
+  is_owner: boolean
+}
+
+export interface FeedListResponse {
+  items: FeedItem[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface WantedPostPayload {
+  title: string
+  description?: string | null
+  max_price?: number | null
+  preferred_location?: string | null
+}
+
+/** 채팅 목록 */
+export interface ChatRoomSummary {
+  room_id: number
+  listing_kind: 'board' | 'wanted'
+  peer_user_id: string
+  peer_name: string
+  listing_title: string
+  listing_price: number | null
+  thumbnail_path: string | null
+  last_message_preview: string | null
+  last_message_at?: string | null
+  /** 설정 시 대화 종료(메시지 전송 불가) */
+  closed_at?: string | null
+}
+
+export interface ChatMessage {
+  message_id: number
+  sender_id: string
+  body: string
+  created_at?: string | null
 }

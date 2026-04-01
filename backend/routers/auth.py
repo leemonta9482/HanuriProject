@@ -1,12 +1,21 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
+from deps import get_current_user
 from models import User
-from schemas import LoginResponse, LoginUserInfo, RegisterResponse, UserLogin
+from schemas import (
+    LoginResponse,
+    LoginUserInfo,
+    PasswordChangeBody,
+    RegisterResponse,
+    UserLogin,
+    UserProfileOut,
+)
 from security import create_access_token, hash_password, verify_password
-from upload_storage import delete_uploaded_file, save_student_id_card
+from upload_storage import delete_uploaded_file, save_profile_image, save_student_id_card
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -79,7 +88,14 @@ def login(body: UserLogin, db: Session = Depends(get_db)) -> LoginResponse:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="가입이 거절된 계정입니다. 관리자에게 문의해 주세요.",
             )
-    token = create_access_token(user.user_id, is_admin=user.is_admin)
+    user.token_version = int(user.token_version) + 1
+    db.commit()
+    db.refresh(user)
+    token = create_access_token(
+        user.user_id,
+        is_admin=user.is_admin,
+        token_version=user.token_version,
+    )
     return LoginResponse(
         access_token=token,
         token_type="bearer",
@@ -88,5 +104,106 @@ def login(body: UserLogin, db: Session = Depends(get_db)) -> LoginResponse:
             name=user.name,
             email=user.email,
             is_admin=user.is_admin,
+            profile_image_path=user.profile_image_path,
         ),
     )
+
+
+@router.get("/me", response_model=LoginUserInfo)
+def get_me(user: User = Depends(get_current_user)) -> LoginUserInfo:
+    return LoginUserInfo(
+        user_id=user.user_id,
+        name=user.name,
+        email=user.email,
+        is_admin=user.is_admin,
+        profile_image_path=user.profile_image_path,
+    )
+
+
+@router.get("/me/profile", response_model=UserProfileOut)
+def get_my_profile(user: User = Depends(get_current_user)) -> UserProfileOut:
+    return UserProfileOut(
+        user_id=user.user_id,
+        name=user.name,
+        email=user.email,
+        school_name=user.school_name,
+        phone=user.phone,
+        interest_major=user.interest_major,
+        profile_image_path=user.profile_image_path,
+        is_admin=user.is_admin,
+    )
+
+
+@router.patch("/me/profile")
+async def update_my_profile(
+    phone: str = Form(..., min_length=1, max_length=20),
+    interest_major: str | None = Form(None),
+    profile_image: UploadFile | None = File(None),
+    clear_profile_image: str | None = Form(None),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserProfileOut:
+    phone_stripped = phone.strip()
+    if phone_stripped != user.phone:
+        dup = db.scalars(
+            select(User).where(User.phone == phone_stripped, User.user_id != user.user_id),
+        ).first()
+        if dup is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="이미 사용 중인 전화번호입니다.",
+            )
+
+    im: str | None = None
+    if interest_major is not None:
+        s = interest_major.strip()
+        im = s if s else None
+
+    user.phone = phone_stripped
+    user.interest_major = im
+
+    if profile_image is not None and profile_image.filename:
+        rel = await save_profile_image(profile_image)
+        if user.profile_image_path:
+            delete_uploaded_file(user.profile_image_path)
+        user.profile_image_path = rel
+    elif clear_profile_image and clear_profile_image.strip().lower() in ("1", "true", "yes"):
+        if user.profile_image_path:
+            delete_uploaded_file(user.profile_image_path)
+        user.profile_image_path = None
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 사용 중인 전화번호입니다.",
+        ) from None
+    db.refresh(user)
+    return UserProfileOut(
+        user_id=user.user_id,
+        name=user.name,
+        email=user.email,
+        school_name=user.school_name,
+        phone=user.phone,
+        interest_major=user.interest_major,
+        profile_image_path=user.profile_image_path,
+        is_admin=user.is_admin,
+    )
+
+
+@router.post("/me/password")
+def change_my_password(
+    body: PasswordChangeBody,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    if not verify_password(body.current_password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 비밀번호가 일치하지 않습니다.",
+        )
+    user.password = hash_password(body.new_password)
+    db.commit()
+    return {"ok": True}
