@@ -377,8 +377,8 @@ function regLabel(s: string) {
 }
 
 .tab.router-link-active {
-  background: hsla(160, 100%, 37%, 0.12);
-  border-color: hsla(160, 100%, 37%, 0.35);
+  background: rgba(92, 176, 185, 0.12);
+  border-color: rgba(92, 176, 185, 0.35);
   font-weight: 600;
 }
 
@@ -459,8 +459,8 @@ function regLabel(s: string) {
 }
 
 .search-row:focus-within {
-  box-shadow: 0 0 0 2px hsla(160, 100%, 37%, 0.2);
-  border-color: hsla(160, 100%, 37%, 0.45);
+  box-shadow: 0 0 0 2px rgba(92, 176, 185, 0.2);
+  border-color: rgba(92, 176, 185, 0.45);
 }
 
 .s.actions {
@@ -471,7 +471,7 @@ function regLabel(s: string) {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   color: #fff;
   font-weight: 600;
 }
@@ -537,7 +537,7 @@ function regLabel(s: string) {
   display: inline-block;
   padding: 0.15rem 0.45rem;
   border-radius: 12px;
-  background: hsla(160, 100%, 37%, 0.12);
+  background: rgba(92, 176, 185, 0.12);
   font-size: 0.8rem;
 }
 
@@ -562,7 +562,7 @@ function regLabel(s: string) {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   color: #fff;
   font-weight: 600;
 }

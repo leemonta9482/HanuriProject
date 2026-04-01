@@ -51,11 +51,9 @@ onMounted(async () => {
 <template>
   <div class="market">
     <header class="toolbar">
+      <div class="toolbar-lead" aria-hidden="true" />
       <h1 class="title">찜한 상품</h1>
-      <div class="actions">
-        <RouterLink class="btn primary" to="/write">글 작성</RouterLink>
-        <RouterLink class="btn" to="/" aria-label="중고 거래 목록으로 이동">중고 거래</RouterLink>
-      </div>
+      <div class="toolbar-trail" />
     </header>
     <p v-if="loading">불러오는 중…</p>
     <p v-else-if="error" class="err">{{ error }}</p>
@@ -97,25 +95,52 @@ onMounted(async () => {
 }
 
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  gap: 0.5rem 1rem;
+  padding-block: 0.625rem;
+  margin-bottom: 2.5rem;
+}
+
+.toolbar-lead {
+  min-width: 0;
+}
+
+.toolbar-trail {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
 }
 
 .title {
+  margin: 0;
+  text-align: center;
+  justify-self: center;
   font-size: 1.35rem;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--color-heading);
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
+@media (max-width: 480px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+    row-gap: 0.75rem;
+  }
+
+  .toolbar-lead {
+    display: none;
+  }
+
+  .title {
+    text-align: center;
+  }
+
+  .toolbar-trail {
+    width: 100%;
+  }
 }
 
 .btn {
@@ -137,7 +162,7 @@ onMounted(async () => {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   border-color: transparent;
   color: #fff;
 }

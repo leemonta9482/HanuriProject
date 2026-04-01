@@ -148,6 +148,22 @@ watch(board, (b) => {
     selectedImageIndex.value = 0
   }
 })
+
+function prevGalleryImage() {
+  const imgs = board.value?.images
+  if (!imgs?.length) return
+  const n = imgs.length
+  if (n < 2) return
+  selectedImageIndex.value = (selectedImageIndex.value - 1 + n) % n
+}
+
+function nextGalleryImage() {
+  const imgs = board.value?.images
+  if (!imgs?.length) return
+  const n = imgs.length
+  if (n < 2) return
+  selectedImageIndex.value = (selectedImageIndex.value + 1) % n
+}
 </script>
 
 <template>
@@ -159,13 +175,12 @@ watch(board, (b) => {
         로그인
       </RouterLink>
       <RouterLink class="btn" to="/register">회원가입</RouterLink>
-      <RouterLink class="btn ghost" to="/">목록으로</RouterLink>
     </div>
   </div>
   <p v-else-if="loading" class="loading-page">불러오는 중…</p>
   <div v-else-if="board" class="detail">
     <nav class="crumb">
-      <RouterLink to="/">목록</RouterLink>
+      <span class="crumb-muted">목록</span>
       <span aria-hidden="true"> / </span>
       <span>상세</span>
     </nav>
@@ -181,6 +196,24 @@ watch(board, (b) => {
               :src="imgUrl(board.images[selectedImageIndex]!.path)"
               :alt="board.title"
             />
+            <template v-if="board.images.length > 1">
+              <button
+                type="button"
+                class="gallery-nav gallery-nav--prev"
+                aria-label="이전 사진"
+                @click="prevGalleryImage"
+              >
+                <span class="gallery-nav__icon" aria-hidden="true">‹</span>
+              </button>
+              <button
+                type="button"
+                class="gallery-nav gallery-nav--next"
+                aria-label="다음 사진"
+                @click="nextGalleryImage"
+              >
+                <span class="gallery-nav__icon" aria-hidden="true">›</span>
+              </button>
+            </template>
           </div>
           <ul v-if="board.images.length > 1" class="thumbs">
             <li v-for="(im, idx) in board.images" :key="im.image_id">
@@ -333,6 +366,11 @@ watch(board, (b) => {
   font-weight: 600;
 }
 
+.crumb-muted {
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
 .err {
   color: #c0392b;
   margin-bottom: 1rem;
@@ -344,43 +382,30 @@ watch(board, (b) => {
   grid-template-columns: 1fr;
 }
 
-@media (min-width: 900px) {
-  .layout {
-    /* 사진 영역과 버튼 카드 비율을 맞춤 (대략 58% / 42%), 열 사이 간격은 좁게 */
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    column-gap: clamp(0.75rem, 1.5vw, 1.25rem);
-    row-gap: 1.25rem;
-    align-items: start;
-  }
-}
-
-@media (min-width: 1200px) {
-  .layout {
-    /* 큰 화면에서도 우측 카드가 너무 좁아지지 않게 유지 */
-    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr);
-    column-gap: clamp(1rem, 1.8vw, 1.5rem);
-  }
-}
-
 .gallery {
   min-width: 0;
 }
 
 .main-img {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid var(--color-border);
   background: var(--color-background-mute);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-  /* 세로로 길어 보이지 않도록 가로형 비율 고정 */
+  /* 가로(열 너비)·16:10으로 높이 결정; 뷰포트 세로(vh)에 따라 변하지 않음 */
   aspect-ratio: 16 / 10;
-  max-height: min(42vh, 420px);
+  max-height: 420px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .main-img img {
+  position: relative;
+  z-index: 0;
   max-width: 100%;
   max-height: 100%;
   width: auto;
@@ -389,12 +414,85 @@ watch(board, (b) => {
   object-fit: contain;
 }
 
+.gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.75rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition:
+    background 0.15s,
+    transform 0.12s;
+}
+
+.gallery-nav:hover {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.gallery-nav:focus-visible {
+  outline: 2px solid rgba(92, 176, 185, 0.85);
+  outline-offset: 2px;
+}
+
+.gallery-nav:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.gallery-nav--prev {
+  left: 0.5rem;
+}
+
+.gallery-nav--next {
+  right: 0.5rem;
+}
+
+.gallery-nav__icon {
+  font-size: 1.85rem;
+  line-height: 1;
+  font-weight: 300;
+  margin-top: -0.1em;
+  user-select: none;
+}
+
+@media (max-width: 480px) {
+  .gallery-nav {
+    width: 2.15rem;
+    height: 2.4rem;
+  }
+
+  .gallery-nav--prev {
+    left: 0.35rem;
+  }
+
+  .gallery-nav--next {
+    right: 0.35rem;
+  }
+
+  .gallery-nav__icon {
+    font-size: 1.55rem;
+  }
+}
+
 .no-img {
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 16 / 10;
-  max-height: min(42vh, 420px);
+  max-height: 420px;
   padding: 1rem;
   text-align: center;
   border-radius: 14px;
@@ -430,8 +528,8 @@ watch(board, (b) => {
 }
 
 .thumb-btn--active {
-  border-color: hsla(160, 100%, 37%, 0.75);
-  box-shadow: 0 0 0 2px hsla(160, 100%, 37%, 0.2);
+  border-color: rgba(92, 176, 185, 0.75);
+  box-shadow: 0 0 0 2px rgba(92, 176, 185, 0.2);
 }
 
 .thumb-btn img {
@@ -439,7 +537,27 @@ watch(board, (b) => {
   height: 76px;
   object-fit: cover;
   display: block;
-  vertical-align: middle;
+}
+
+/* 데스크톱: 사진 영역은 고정 비율(베이스 .main-img)·이미지는 contain으로만 표시 */
+@media (min-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: clamp(0.75rem, 1.2vw, 1.25rem);
+    row-gap: 1.25rem;
+    align-items: start;
+  }
+
+  .summary {
+    position: sticky;
+    top: 0.75rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .layout {
+    column-gap: clamp(1rem, 1.8vw, 1.5rem);
+  }
 }
 
 .summary {
@@ -451,13 +569,6 @@ watch(board, (b) => {
   background: var(--color-background-soft);
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
   box-sizing: border-box;
-}
-
-@media (min-width: 900px) {
-  .summary {
-    position: sticky;
-    top: 0.75rem;
-  }
 }
 
 .title {
@@ -507,8 +618,8 @@ watch(board, (b) => {
 
 /* 판매중: 초록 / 예약중: 노랑 계열 / 거래완료: 빨강 계열 */
 .chip-status--on-sale {
-  background: hsla(160, 45%, 92%, 1);
-  color: hsla(160, 100%, 22%, 1);
+  background: hsl(160, 45%, 92%);
+  color: hsl(160, 100%, 22%);
 }
 
 .chip-status--reserved {
@@ -523,8 +634,8 @@ watch(board, (b) => {
 
 @media (prefers-color-scheme: dark) {
   .chip-status--on-sale {
-    background: hsla(160, 35%, 18%, 1);
-    color: hsla(145, 65%, 62%, 1);
+    background: hsl(160, 35%, 18%);
+    color: hsla(160, 65%, 62%, 1);
   }
 
   .chip-status--reserved {
@@ -575,7 +686,7 @@ watch(board, (b) => {
 }
 
 .seller-profile:hover {
-  background: hsla(160, 100%, 37%, 0.12);
+  background: rgba(92, 176, 185, 0.12);
 }
 
 .seller-av {
@@ -610,7 +721,7 @@ watch(board, (b) => {
   color: var(--color-heading);
   margin: 0 0 0.75rem;
   padding-bottom: 0.5rem;
-  border-bottom: 2px solid hsla(160, 100%, 37%, 0.35);
+  border-bottom: 2px solid rgba(92, 176, 185, 0.35);
 }
 
 .description-block__body {
@@ -672,7 +783,7 @@ watch(board, (b) => {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   border-color: transparent;
   color: #fff;
 }
@@ -811,7 +922,7 @@ watch(board, (b) => {
 }
 
 .login-gate-actions .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   border-color: transparent;
   color: #fff;
 }

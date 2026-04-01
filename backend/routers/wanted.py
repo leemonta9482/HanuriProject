@@ -66,6 +66,36 @@ def list_wanted(
     )
 
 
+@router.get("/me", response_model=WantedListResponse)
+def list_my_wanted(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=48),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> WantedListResponse:
+    """내가 작성한 구매 희망글만 조회 (내 상점)."""
+    count_q = select(func.count()).select_from(WantedPost).where(WantedPost.user_id == user.user_id)
+    total = db.scalar(count_q) or 0
+
+    stmt = (
+        select(WantedPost)
+        .where(WantedPost.user_id == user.user_id)
+        .order_by(desc(WantedPost.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = db.execute(stmt).scalars().all()
+    items = [_wanted_out(db, w, user) for w in rows]
+    pages = ceil(total / page_size) if total else 0
+    return WantedListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
+    )
+
+
 @router.get("/{wanted_id}", response_model=WantedPostOut)
 def get_wanted(
     wanted_id: int,

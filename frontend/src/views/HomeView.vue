@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import type { RouteLocationRaw } from 'vue-router'
 
 import { addFavorite, removeFavorite, type BoardSort } from '@/api/boards'
 import { fetchFeed } from '@/api/feed'
@@ -47,7 +48,7 @@ function formatPrice(n: number | null): string {
   return new Intl.NumberFormat('ko-KR').format(n) + '원'
 }
 
-function itemLink(it: FeedItem): string {
+function itemLink(it: FeedItem): RouteLocationRaw {
   if (it.kind === 'board' && it.board_id != null) return `/boards/${it.board_id}`
   if (it.kind === 'wanted' && it.wanted_id != null) return `/wanted/${it.wanted_id}`
   return '/'
@@ -213,25 +214,19 @@ watch(sentinel, (el) => {
 <template>
   <div class="market">
     <header class="toolbar">
+      <div class="toolbar-lead" aria-hidden="true" />
       <h1 class="title">중고 거래</h1>
-      <div class="actions">
-        <label v-if="auth.isLoggedIn" class="sort">
-          <span class="sr-only">정렬</span>
-          <select v-model="sort" class="select-theme">
-            <option value="latest">최신순</option>
-            <option value="price_asc">가격 낮은순</option>
-            <option value="price_desc">가격 높은순</option>
-          </select>
-        </label>
-        <RouterLink v-if="auth.isLoggedIn" class="btn primary" to="/write">글 작성</RouterLink>
-        <RouterLink
-          v-if="auth.isLoggedIn"
-          class="btn"
-          to="/favorites"
-          aria-label="찜한 상품 목록으로 이동"
-        >
-          찜 목록
-        </RouterLink>
+      <div class="toolbar-trail">
+        <div v-if="auth.isLoggedIn" class="actions">
+          <label class="sort">
+            <span class="sr-only">정렬</span>
+            <select v-model="sort" class="select-theme">
+              <option value="latest">최신순</option>
+              <option value="price_asc">가격 낮은순</option>
+              <option value="price_desc">가격 높은순</option>
+            </select>
+          </label>
+        </div>
       </div>
     </header>
 
@@ -268,9 +263,16 @@ watch(sentinel, (el) => {
       <li v-for="it in items" :key="cardKey(it)" class="card-wrap">
         <div class="card card--feed">
           <RouterLink :to="itemLink(it)" class="card-link">
-            <div class="thumb" :class="{ empty: !it.thumbnail_path }">
+            <div
+              class="thumb"
+              :class="{
+                empty: !it.thumbnail_path,
+                'thumb--wanted': it.kind === 'wanted' && !it.thumbnail_path,
+              }"
+            >
               <img v-if="thumbUrl(it.thumbnail_path)" :src="thumbUrl(it.thumbnail_path)!" alt="" />
-              <span v-else class="ph">{{ it.kind === 'wanted' ? '구매 희망글' : '이미지 없음' }}</span>
+              <span v-else-if="it.kind === 'wanted'" class="wanted-thumb__icon" aria-hidden="true">🔍</span>
+              <span v-else class="ph">이미지 없음</span>
               <span
                 v-if="it.kind === 'board' && it.status"
                 class="badge-status"
@@ -354,17 +356,34 @@ watch(sentinel, (el) => {
 }
 
 .toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  /* 정렬 셀렉트가 더 높아도 제목은 상단 기준(찜/내상점과 같은 시각적 높이) */
+  align-items: start;
+  gap: 0.5rem 1rem;
+  /* 메인 헤더와 본문 사이 간격(2.5rem)과 맞춤 */
+  padding-block: 0.625rem;
+  margin-bottom: 2.5rem;
+}
+
+.toolbar-lead {
+  min-width: 0;
+}
+
+.toolbar-trail {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  min-width: 0;
 }
 
 .title {
+  margin: 0;
+  text-align: center;
+  justify-self: center;
   font-size: 1.35rem;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--color-heading);
 }
 
@@ -373,6 +392,26 @@ watch(sentinel, (el) => {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+    row-gap: 0.75rem;
+  }
+
+  .toolbar-lead {
+    display: none;
+  }
+
+  .title {
+    text-align: center;
+  }
+
+  .toolbar-trail {
+    width: 100%;
+  }
 }
 
 .btn {
@@ -394,7 +433,7 @@ watch(sentinel, (el) => {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   border-color: transparent;
   color: #fff;
 }
@@ -519,7 +558,7 @@ watch(sentinel, (el) => {
 }
 
 .seller-chip:hover {
-  background: hsla(160, 100%, 37%, 0.12);
+  background: rgba(92, 176, 185, 0.12);
 }
 
 .seller-av {
@@ -561,6 +600,21 @@ watch(sentinel, (el) => {
   justify-content: center;
 }
 
+.thumb.thumb--wanted {
+  background: linear-gradient(
+    145deg,
+    rgba(var(--color-accent-rgb), 0.28) 0%,
+    rgba(var(--color-accent-rgb), 0.08) 50%,
+    var(--color-background-mute) 100%
+  );
+}
+
+.wanted-thumb__icon {
+  font-size: 2rem;
+  line-height: 1;
+  opacity: 0.9;
+}
+
 .thumb img {
   width: 100%;
   height: 100%;
@@ -587,7 +641,7 @@ watch(sentinel, (el) => {
 }
 
 .badge-status--on-sale {
-  background: hsla(160, 100%, 30%, 0.92);
+  background: hsla(160, 100%, 32%, 0.92);
   color: #fff;
 }
 

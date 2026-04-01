@@ -1,5 +1,5 @@
 /**
- * 통일 셀렉트: 녹색 pill, 흰 글씨, 화살표 아이콘
+ * 통일 셀렉트: 브랜드(#5cb0b9) 톤 pill, 흰 글씨, 화살표 아이콘
  * 사용: <select class="select-theme"> + 필요 시 modifier
  */
 
@@ -10,8 +10,8 @@ select.select-theme {
   min-width: 9.5rem;
   padding: 0.5rem 2.15rem 0.5rem 1rem;
   border-radius: 999px;
-  border: 1px solid hsla(160, 100%, 28%, 1);
-  background-color: hsla(160, 100%, 32%, 1);
+  border: 1px solid hsl(186, 38%, 28%);
+  background-color: hsl(186, 38%, 32%);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 8.2L1.2 3.4h9.6z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
@@ -37,7 +37,7 @@ select.select-theme:focus {
   outline: none;
   box-shadow:
     0 0 0 2px var(--color-background),
-    0 0 0 4px hsla(160, 100%, 45%, 0.65);
+    0 0 0 4px rgba(92, 176, 185, 0.55);
 }
 
 select.select-theme:disabled {
@@ -48,7 +48,7 @@ select.select-theme:disabled {
 
 /* 드롭다운 항목 (브라우저/OS마다 적용 범위 다름) */
 select.select-theme option {
-  background: hsl(160, 14%, 18%);
+  background: hsl(186, 14%, 18%);
   color: #fff;
   font-weight: 500;
   font-size: 0.9rem;
@@ -83,10 +83,10 @@ select.select-theme.select-theme--compact {
   background-size: 10px auto;
 }
 
-/* ----- 거래 상태 (내 상점 등, 홈 썸네일 뱃지와 동일 톤) ----- */
+/* ----- 거래 상태: 판매중만 기존 초록(160) / 나머지는 기존 노랑·빨강 ----- */
 select.select-theme.select-theme--status-on-sale {
-  background-color: hsla(160, 100%, 30%, 1);
-  border-color: hsla(160, 100%, 22%, 1);
+  background-color: hsl(160, 100%, 32%);
+  border-color: hsl(160, 100%, 22%);
   color: #fff;
 }
 
@@ -145,7 +145,7 @@ select.select-theme option[value='SOLD'] {
   border-radius: 8px 0 0 8px;
   min-width: 7.5rem;
   max-width: 42%;
-  border-right: 1px solid hsla(160, 100%, 22%, 1);
+  border-right: 1px solid hsl(186, 38%, 22%);
   box-shadow: none;
 }
 

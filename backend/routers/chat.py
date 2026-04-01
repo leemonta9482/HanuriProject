@@ -107,6 +107,7 @@ def _room_summary(
     return ChatRoomSummaryOut(
         room_id=room.room_id,
         listing_kind=_listing_kind_api(room.listing_kind),  # type: ignore[arg-type]
+        listing_id=room.listing_id,
         peer_user_id=peer_id,
         peer_name=peer_name,
         listing_title=title or "(삭제된 글)",

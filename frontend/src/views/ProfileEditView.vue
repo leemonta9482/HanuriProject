@@ -365,9 +365,9 @@ async function savePassword() {
 }
 
 .field input:focus {
-  outline: 2px solid hsla(160, 100%, 37%, 0.45);
+  outline: 2px solid rgba(92, 176, 185, 0.45);
   outline-offset: 0;
-  border-color: hsla(160, 100%, 37%, 0.6);
+  border-color: rgba(92, 176, 185, 0.6);
 }
 
 .field input.readonly {
@@ -460,7 +460,7 @@ async function savePassword() {
   padding: 0;
   border: none;
   background: none;
-  color: hsla(160, 100%, 32%, 1);
+  color: hsl(186, 38%, 32%);
   font-size: 0.88rem;
   cursor: pointer;
   text-decoration: underline;
@@ -533,7 +533,7 @@ async function savePassword() {
 }
 
 .hint.ok {
-  color: hsla(160, 100%, 30%, 1);
+  color: hsl(186, 38%, 30%);
 }
 
 .submit {
@@ -541,7 +541,7 @@ async function savePassword() {
   padding: 0.75rem 1rem;
   border: none;
   border-radius: 8px;
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   color: #fff;
   font-weight: 600;
   font-size: 1rem;

@@ -4,7 +4,8 @@ import { RouterLink } from 'vue-router'
 
 import { deleteBoard, fetchMyBoards, updateBoardStatus } from '@/api/boards'
 import { uploadsPublicUrl } from '@/api/client'
-import type { BoardListItem, BoardStatus } from '@/api/types'
+import { deleteWanted, fetchMyWanted } from '@/api/wanted'
+import type { BoardListItem, BoardStatus, WantedPost } from '@/api/types'
 
 const page = ref(1)
 const pageSize = ref(12)
@@ -16,6 +17,13 @@ const error = ref('')
 const statusFilter = ref<string>('')
 const statusDraft = reactive<Record<number, BoardStatus>>({})
 const busyId = ref<number | null>(null)
+
+const wantedItems = ref<WantedPost[]>([])
+const wantedPage = ref(1)
+const wantedPages = ref(0)
+const wantedTotal = ref(0)
+const loadingWanted = ref(true)
+const wantedBusyId = ref<number | null>(null)
 
 const statusLabel: Record<BoardStatus, string> = {
   ON_SALE: '판매중',
@@ -44,6 +52,11 @@ function formatPrice(n: number): string {
   return new Intl.NumberFormat('ko-KR').format(n) + '원'
 }
 
+function formatWantedMaxPrice(n: number | null): string {
+  if (n == null || Number.isNaN(n)) return '희망가 미정'
+  return '희망 ' + new Intl.NumberFormat('ko-KR').format(n) + '원 이하'
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -67,9 +80,54 @@ async function load() {
   }
 }
 
-onMounted(() => load())
+async function loadWanted() {
+  loadingWanted.value = true
+  try {
+    const res = await fetchMyWanted({
+      page: wantedPage.value,
+      page_size: pageSize.value,
+    })
+    wantedItems.value = res.items
+    wantedTotal.value = res.total
+    wantedPages.value = res.pages
+  } catch {
+    wantedItems.value = []
+    wantedTotal.value = 0
+    wantedPages.value = 0
+  } finally {
+    loadingWanted.value = false
+  }
+}
+
+async function removeWanted(w: WantedPost) {
+  if (!confirm(`「${w.title}」구매 희망글을 삭제할까요?`)) return
+  wantedBusyId.value = w.wanted_id
+  try {
+    await deleteWanted(w.wanted_id)
+    await loadWanted()
+  } catch {
+    /* ignore */
+  } finally {
+    wantedBusyId.value = null
+  }
+}
+
+function prevWantedPage() {
+  if (wantedPage.value > 1) wantedPage.value -= 1
+}
+
+function nextWantedPage() {
+  if (wantedPages.value && wantedPage.value < wantedPages.value) wantedPage.value += 1
+}
+
+onMounted(() => {
+  void load()
+  void loadWanted()
+})
 
 watch(page, () => load())
+
+watch(wantedPage, () => loadWanted())
 
 function onFilterChange() {
   page.value = 1
@@ -78,7 +136,9 @@ function onFilterChange() {
 
 function onPageSizeChange() {
   page.value = 1
-  load()
+  wantedPage.value = 1
+  void load()
+  void loadWanted()
 }
 
 function prevPage() {
@@ -124,12 +184,12 @@ async function removeBoard(it: BoardListItem) {
 <template>
   <div class="market">
     <header class="toolbar">
+      <div class="toolbar-lead" aria-hidden="true" />
       <h1 class="title">내 상점</h1>
-      <div class="actions">
-        <RouterLink class="btn primary" to="/write">새 글 작성</RouterLink>
-        <RouterLink class="btn" to="/">중고 거래</RouterLink>
-      </div>
+      <div class="toolbar-trail" />
     </header>
+
+    <h2 class="section-title">판매글</h2>
 
     <div class="filters">
       <div class="filters-left">
@@ -222,6 +282,64 @@ async function removeBoard(it: BoardListItem) {
     </div>
 
     <p v-if="!loading && !error && items.length === 0" class="empty">등록한 판매글이 없습니다.</p>
+
+    <h2 id="my-shop-wanted" class="section-title section-title--spaced" tabindex="-1">구매 희망</h2>
+    <p v-if="!loadingWanted" class="wanted-meta">
+      총 <strong>{{ wantedTotal }}</strong
+      >건 · {{ wantedPage }} / {{ wantedPages || 1 }} 페이지
+    </p>
+
+    <p v-if="loadingWanted">불러오는 중…</p>
+    <ul v-else class="grid grid--wanted">
+      <li v-for="w in wantedItems" :key="w.wanted_id" class="card-wrap">
+        <RouterLink :to="`/wanted/${w.wanted_id}`" class="card card--wanted">
+          <div class="thumb thumb--wanted" aria-hidden="true">
+            <span class="wanted-thumb__icon">🔍</span>
+            <span class="wanted-thumb__badge">구매 희망</span>
+          </div>
+          <div class="meta">
+            <p class="card-title">{{ w.title }}</p>
+            <p class="price">{{ formatWantedMaxPrice(w.max_price) }}</p>
+            <p class="sub">{{ w.preferred_location?.trim() || '장소 미정' }}</p>
+          </div>
+        </RouterLink>
+        <div class="manage">
+          <button
+            type="button"
+            class="btn-sm danger"
+            :disabled="wantedBusyId === w.wanted_id"
+            @click="removeWanted(w)"
+          >
+            삭제
+          </button>
+        </div>
+      </li>
+    </ul>
+
+    <div v-if="!loadingWanted && wantedItems.length > 0" class="pager-bar pager-bar--wanted">
+      <div class="pager-btns">
+        <button
+          type="button"
+          class="btn ghost"
+          :disabled="wantedPage <= 1 || loadingWanted"
+          @click="prevWantedPage"
+        >
+          이전
+        </button>
+        <button
+          type="button"
+          class="btn ghost"
+          :disabled="!wantedPages || wantedPage >= wantedPages || loadingWanted"
+          @click="nextWantedPage"
+        >
+          다음
+        </button>
+      </div>
+    </div>
+
+    <p v-if="!loadingWanted && wantedItems.length === 0" class="empty empty--wanted">
+      등록한 구매 희망글이 없습니다.
+    </p>
   </div>
 </template>
 
@@ -234,18 +352,52 @@ async function removeBoard(it: BoardListItem) {
 }
 
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 0.5rem 1rem;
+  padding-block: 0.625rem;
+  margin-bottom: 2.5rem;
+}
+
+.toolbar-lead {
+  min-width: 0;
+}
+
+.toolbar-trail {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
 }
 
 .title {
+  margin: 0;
+  text-align: center;
+  justify-self: center;
   font-size: 1.35rem;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--color-heading);
+}
+
+@media (max-width: 480px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+    row-gap: 0.75rem;
+  }
+
+  .toolbar-lead {
+    display: none;
+  }
+
+  .title {
+    text-align: center;
+  }
+
+  .toolbar-trail {
+    width: 100%;
+  }
 }
 
 .psize {
@@ -265,6 +417,8 @@ async function removeBoard(it: BoardListItem) {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .btn {
@@ -282,7 +436,7 @@ async function removeBoard(it: BoardListItem) {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   border-color: transparent;
   color: #fff;
   font-weight: 600;
@@ -345,10 +499,15 @@ async function removeBoard(it: BoardListItem) {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-height: 0;
+  height: 100%;
 }
 
 .card {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   text-decoration: none;
   color: inherit;
   border: 1px solid var(--color-border);
@@ -359,11 +518,13 @@ async function removeBoard(it: BoardListItem) {
 }
 
 .card:hover {
-  border-color: hsla(160, 100%, 37%, 0.45);
+  border-color: rgba(92, 176, 185, 0.45);
 }
 
 .thumb {
+  flex: 0 0 auto;
   aspect-ratio: 4 / 3;
+  width: 100%;
   background: var(--color-background-mute);
   display: flex;
   align-items: center;
@@ -384,7 +545,12 @@ async function removeBoard(it: BoardListItem) {
 }
 
 .card .meta {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   padding: 0.65rem 0.75rem 0.75rem;
+  min-height: 5.75rem;
+  box-sizing: border-box;
 }
 
 .card-title {
@@ -394,6 +560,7 @@ async function removeBoard(it: BoardListItem) {
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -401,16 +568,29 @@ async function removeBoard(it: BoardListItem) {
 .price {
   margin: 0;
   font-weight: 700;
-  color: hsla(160, 100%, 28%, 1);
+  color: hsl(186, 38%, 28%);
   font-size: 0.95rem;
 }
 
 .status-line {
-  margin: 0.4rem 0 0;
+  margin: 0.35rem 0 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8rem;
+}
+
+.sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--color-text);
+  opacity: 0.85;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .badge {
@@ -422,7 +602,7 @@ async function removeBoard(it: BoardListItem) {
 }
 
 .badge--on-sale {
-  background: hsla(160, 100%, 30%, 0.92);
+  background: hsla(160, 100%, 32%, 0.92);
   color: #fff;
 }
 
@@ -513,6 +693,76 @@ async function removeBoard(it: BoardListItem) {
 .pager-btns .btn.ghost:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.section-title--spaced {
+  margin-top: 2.35rem;
+}
+
+#my-shop-wanted {
+  scroll-margin-top: 5rem;
+}
+
+.wanted-meta {
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+  color: var(--color-text);
+}
+
+.card--wanted {
+  transition:
+    box-shadow 0.2s,
+    transform 0.15s;
+}
+
+.card--wanted:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.thumb--wanted {
+  position: relative;
+  background: linear-gradient(
+    145deg,
+    rgba(var(--color-accent-rgb), 0.28) 0%,
+    rgba(var(--color-accent-rgb), 0.08) 50%,
+    var(--color-background-mute) 100%
+  );
+}
+
+.wanted-thumb__icon {
+  font-size: 2rem;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.wanted-thumb__badge {
+  position: absolute;
+  left: 0.45rem;
+  top: 0.45rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-radius: 6px;
+  background: hsla(186, 42%, 22%, 0.88);
+  color: #fff;
+}
+
+.pager-bar--wanted {
+  margin-top: 1rem;
+}
+
+.empty--wanted {
+  padding-top: 1rem;
 }
 
 .empty {
