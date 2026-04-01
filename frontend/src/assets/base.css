@@ -33,6 +33,10 @@
   --color-heading: var(--vt-c-text-light-1);
   --color-text: var(--vt-c-text-light-1);
 
+  /* 브랜드 액센트 — 로고 톤(#57A9B4)보다 아주 살짝 밝게 */
+  --color-accent: #5cb0b9;
+  --color-accent-rgb: 92, 176, 185;
+
   --section-gap: 160px;
 }
 

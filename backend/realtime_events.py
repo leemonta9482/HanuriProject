@@ -8,6 +8,8 @@ import queue
 from collections import defaultdict
 from typing import Any
 
+from fastapi import Request
+
 _subscribers: dict[str, list[queue.Queue[dict[str, Any]]]] = defaultdict(list)
 
 
@@ -42,12 +44,18 @@ def _event_wait(q: queue.Queue[dict[str, Any]], timeout: float) -> dict[str, Any
         return None
 
 
-async def sse_event_generator(user_id: str):
+# 대기 시간이 길면 서버 reload 시 to_thread가 끝날 때까지 종료가 지연됨 → 짧게 유지
+_SSE_POLL_SEC = 2.5
+
+
+async def sse_event_generator(user_id: str, request: Request):
     q = subscribe(user_id)
     try:
         yield f"data: {json.dumps({'type': 'connected'}, ensure_ascii=False)}\n\n"
         while True:
-            item = await asyncio.to_thread(_event_wait, q, 25.0)
+            if await request.is_disconnected():
+                break
+            item = await asyncio.to_thread(_event_wait, q, _SSE_POLL_SEC)
             if item is None:
                 yield f"data: {json.dumps({'type': 'ping'}, ensure_ascii=False)}\n\n"
             else:

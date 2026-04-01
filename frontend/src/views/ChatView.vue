@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import type { RouteLocationRaw } from 'vue-router'
 
 import {
   closeChatRoom,
@@ -26,6 +27,18 @@ const loadingMessages = ref(false)
 const error = ref('')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
+const msgScrollRef = ref<HTMLElement | null>(null)
+
+function scrollChatToBottom() {
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = msgScrollRef.value
+      if (!el) return
+      el.scrollTop = el.scrollHeight
+    })
+  })
+}
+
 const selectedRoom = computed(() => rooms.value.find((r) => r.room_id === selectedRoomId.value) ?? null)
 
 function thumbUrl(path: string | null): string | null {
@@ -36,6 +49,13 @@ function thumbUrl(path: string | null): string | null {
 function formatPrice(n: number | null): string {
   if (n == null || Number.isNaN(n)) return '가격 미정'
   return new Intl.NumberFormat('ko-KR').format(n) + '원'
+}
+
+function listingDetailTo(room: ChatRoomSummary): RouteLocationRaw {
+  if (room.listing_kind === 'wanted') {
+    return { name: 'wanted-detail', params: { id: String(room.listing_id) } }
+  }
+  return { name: 'board-detail', params: { id: String(room.listing_id) } }
 }
 
 function formatTime(iso: string | undefined | null): string {
@@ -204,6 +224,12 @@ watch(
 )
 
 onUnmounted(() => stopPoll())
+
+watch(messages, () => scrollChatToBottom(), { deep: true })
+
+watch(loadingMessages, (loading) => {
+  if (!loading) scrollChatToBottom()
+})
 </script>
 
 <template>
@@ -277,7 +303,9 @@ onUnmounted(() => stopPoll())
                 <img :src="thumbUrl(selectedRoom.thumbnail_path)!" alt="" />
               </div>
               <div class="lb-meta">
-                <span class="lb-title">{{ selectedRoom.listing_title }}</span>
+                <RouterLink class="lb-title lb-title-link" :to="listingDetailTo(selectedRoom)">
+                  {{ selectedRoom.listing_title }}
+                </RouterLink>
                 <span class="lb-price">{{ formatPrice(selectedRoom.listing_price) }}</span>
               </div>
             </div>
@@ -287,7 +315,7 @@ onUnmounted(() => stopPoll())
             종료된 대화입니다. 더 이상 메시지를 보낼 수 없습니다.
           </p>
 
-          <div class="msg-scroll">
+          <div ref="msgScrollRef" class="msg-scroll">
             <p v-if="loadingMessages" class="msg-hint">불러오는 중…</p>
             <ul v-else class="msg-list">
               <li
@@ -328,6 +356,8 @@ onUnmounted(() => stopPoll())
   margin: 0 auto;
   padding: 0 0.5rem 2rem;
   min-height: min(78vh, 720px);
+  display: flex;
+  flex-direction: column;
 }
 
 .page-head {
@@ -356,20 +386,25 @@ onUnmounted(() => stopPoll())
 
 .split {
   display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: clamp(420px, 65vh, 640px);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   overflow: hidden;
   background: var(--color-background-soft);
-  min-height: 420px;
 }
 
 .sidebar {
   width: min(100%, 320px);
   flex-shrink: 0;
+  min-height: 0;
   border-right: 1px solid var(--color-border);
   background: var(--color-background);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .side-hint,
@@ -385,8 +420,10 @@ onUnmounted(() => stopPoll())
   list-style: none;
   margin: 0;
   padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  max-height: min(70vh, 560px);
+  -webkit-overflow-scrolling: touch;
 }
 
 .room-item {
@@ -408,7 +445,7 @@ onUnmounted(() => stopPoll())
 }
 
 .room-item.active {
-  background: hsla(160, 100%, 37%, 0.1);
+  background: rgba(92, 176, 185, 0.1);
 }
 
 .room-thumb-wrap {
@@ -473,8 +510,10 @@ onUnmounted(() => stopPoll())
 .main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .empty-main {
@@ -499,6 +538,7 @@ onUnmounted(() => stopPoll())
 }
 
 .chat-top {
+  flex-shrink: 0;
   padding: 0.85rem 1rem;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-background);
@@ -554,6 +594,7 @@ onUnmounted(() => stopPoll())
 }
 
 .closed-banner {
+  flex-shrink: 0;
   margin: 0;
   padding: 0.65rem 1rem;
   font-size: 0.88rem;
@@ -580,8 +621,8 @@ onUnmounted(() => stopPoll())
   font-size: 0.72rem;
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
-  background: hsla(160, 100%, 37%, 0.15);
-  color: hsl(160, 70%, 28%);
+  background: rgba(92, 176, 185, 0.15);
+  color: hsl(186, 38%, 28%);
   font-weight: 600;
 }
 
@@ -619,6 +660,18 @@ onUnmounted(() => stopPoll())
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.lb-title-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  display: block;
+}
+
+.lb-title-link:hover {
+  text-decoration: underline;
 }
 
 .lb-price {
@@ -628,10 +681,85 @@ onUnmounted(() => stopPoll())
 }
 
 .msg-scroll {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0.75rem 1rem;
-  min-height: 200px;
+}
+
+/* 스크롤바 — 브랜드 톤, 얇은 트랙 + 둥근 썸 */
+.room-list,
+.msg-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--color-accent-rgb), 0.52) rgba(0, 0, 0, 0.06);
+}
+
+.room-list::-webkit-scrollbar,
+.msg-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+.room-list::-webkit-scrollbar-track,
+.msg-scroll::-webkit-scrollbar-track {
+  margin: 4px 0;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 100px;
+}
+
+.room-list::-webkit-scrollbar-thumb,
+.msg-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--color-accent-rgb), 0.55),
+    rgba(var(--color-accent-rgb), 0.4)
+  );
+  border-radius: 100px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.room-list::-webkit-scrollbar-thumb:hover,
+.msg-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--color-accent-rgb), 0.72),
+    rgba(var(--color-accent-rgb), 0.55)
+  );
+  background-clip: padding-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  .room-list,
+  .msg-scroll {
+    scrollbar-color: rgba(var(--color-accent-rgb), 0.58) rgba(255, 255, 255, 0.07);
+  }
+
+  .room-list::-webkit-scrollbar-track,
+  .msg-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .room-list::-webkit-scrollbar-thumb,
+  .msg-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+      180deg,
+      rgba(var(--color-accent-rgb), 0.6),
+      rgba(var(--color-accent-rgb), 0.42)
+    );
+    background-clip: padding-box;
+  }
+
+  .room-list::-webkit-scrollbar-thumb:hover,
+  .msg-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+      180deg,
+      rgba(var(--color-accent-rgb), 0.78),
+      rgba(var(--color-accent-rgb), 0.58)
+    );
+    background-clip: padding-box;
+  }
 }
 
 .msg-hint {
@@ -667,8 +795,8 @@ onUnmounted(() => stopPoll())
 }
 
 .msg-row.me .bubble {
-  background: hsla(160, 100%, 37%, 0.12);
-  border-color: hsla(160, 100%, 37%, 0.35);
+  background: rgba(92, 176, 185, 0.12);
+  border-color: rgba(92, 176, 185, 0.35);
 }
 
 .msg-body {
@@ -687,6 +815,7 @@ onUnmounted(() => stopPoll())
 }
 
 .composer {
+  flex-shrink: 0;
   display: flex;
   gap: 0.5rem;
   padding: 0.65rem 0.85rem;
@@ -710,7 +839,7 @@ onUnmounted(() => stopPoll())
   padding: 0.55rem 1rem;
   border-radius: 8px;
   border: none;
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   color: #fff;
   font-weight: 600;
   font-size: 0.9rem;
@@ -725,17 +854,32 @@ onUnmounted(() => stopPoll())
 @media (max-width: 768px) {
   .split {
     flex-direction: column;
+    height: min(82vh, 760px);
+    max-height: min(88vh, 800px);
+    min-height: min(70vh, 640px);
   }
 
   .sidebar {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid var(--color-border);
-    max-height: 40vh;
+    max-height: 38vh;
+    flex-shrink: 0;
   }
 
   .room-list {
-    max-height: 36vh;
+    max-height: 34vh;
+  }
+
+  .main {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .msg-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 }
 </style>

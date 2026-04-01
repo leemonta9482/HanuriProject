@@ -183,7 +183,6 @@ async function onToggleFavorite(it: BoardListItem) {
           </select>
         </label>
         <RouterLink v-if="isOwnShop" class="btn primary" to="/my-shop">내 상점 관리</RouterLink>
-        <RouterLink class="btn" to="/">중고 거래</RouterLink>
       </div>
     </header>
 
@@ -245,16 +244,18 @@ async function onToggleFavorite(it: BoardListItem) {
 
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding-block: 0.625rem;
+  margin-bottom: 2.5rem;
 }
 
 .head-main {
+  width: 100%;
   min-width: 0;
-  flex: 1 1 12rem;
+  display: flex;
+  justify-content: center;
 }
 
 .shop-identity {
@@ -305,8 +306,9 @@ async function onToggleFavorite(it: BoardListItem) {
 }
 
 .title {
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--color-heading);
   margin: 0 0 0.2rem;
   word-break: break-all;
@@ -324,6 +326,8 @@ async function onToggleFavorite(it: BoardListItem) {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .sort {
@@ -346,7 +350,7 @@ async function onToggleFavorite(it: BoardListItem) {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   border-color: transparent;
   color: #fff;
 }
@@ -458,7 +462,7 @@ async function onToggleFavorite(it: BoardListItem) {
 .price {
   margin: 0;
   font-weight: 700;
-  color: hsla(160, 100%, 28%, 1);
+  color: hsl(186, 38%, 28%);
 }
 
 .empty,

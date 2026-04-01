@@ -230,7 +230,7 @@ async function onSubmit() {
 }
 
 .req {
-  color: hsla(160, 100%, 32%, 1);
+  color: hsl(186, 38%, 32%);
 }
 
 .field input {
@@ -243,9 +243,9 @@ async function onSubmit() {
 }
 
 .field input:focus {
-  outline: 2px solid hsla(160, 100%, 37%, 0.45);
+  outline: 2px solid rgba(92, 176, 185, 0.45);
   outline-offset: 0;
-  border-color: hsla(160, 100%, 37%, 0.6);
+  border-color: rgba(92, 176, 185, 0.6);
 }
 
 .file-input {
@@ -272,7 +272,7 @@ async function onSubmit() {
   padding: 0.75rem 1rem;
   border: none;
   border-radius: 8px;
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   color: #fff;
   font-weight: 600;
   font-size: 1rem;

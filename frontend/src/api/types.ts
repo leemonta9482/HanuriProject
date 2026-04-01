@@ -273,10 +273,19 @@ export interface WantedPostPayload {
   preferred_location?: string | null
 }
 
+export interface WantedListResponse {
+  items: WantedPost[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
 /** 채팅 목록 */
 export interface ChatRoomSummary {
   room_id: number
   listing_kind: 'board' | 'wanted'
+  listing_id: number
   peer_user_id: string
   peer_name: string
   listing_title: string

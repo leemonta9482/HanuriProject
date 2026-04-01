@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from deps import get_current_user
@@ -9,9 +9,12 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 
 
 @router.get("/stream")
-async def stream_events(user: User = Depends(get_current_user)) -> StreamingResponse:
+async def stream_events(
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
     return StreamingResponse(
-        sse_event_generator(user.user_id),
+        sse_event_generator(user.user_id, request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

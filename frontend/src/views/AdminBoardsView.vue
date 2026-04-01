@@ -312,8 +312,8 @@ async function removeBoard(b: AdminBoard) {
 }
 
 .tab.router-link-active {
-  background: hsla(160, 100%, 37%, 0.12);
-  border-color: hsla(160, 100%, 37%, 0.35);
+  background: rgba(92, 176, 185, 0.12);
+  border-color: rgba(92, 176, 185, 0.35);
   font-weight: 600;
 }
 
@@ -408,8 +408,8 @@ async function removeBoard(b: AdminBoard) {
 }
 
 .search-row:focus-within {
-  box-shadow: 0 0 0 2px hsla(160, 100%, 37%, 0.2);
-  border-color: hsla(160, 100%, 37%, 0.45);
+  box-shadow: 0 0 0 2px rgba(92, 176, 185, 0.2);
+  border-color: rgba(92, 176, 185, 0.45);
 }
 
 .search-actions {
@@ -539,7 +539,7 @@ async function removeBoard(b: AdminBoard) {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   color: #fff;
   font-weight: 600;
 }
@@ -581,14 +581,14 @@ async function removeBoard(b: AdminBoard) {
   padding: 0.35rem 0.5rem;
   font-size: 0.82rem;
   font-weight: 600;
-  color: hsla(160, 100%, 30%, 1);
+  color: hsl(186, 38%, 30%);
   text-decoration: none;
   border-radius: 6px;
-  background: hsla(160, 100%, 37%, 0.1);
+  background: rgba(92, 176, 185, 0.1);
 }
 
 .link-detail:hover {
-  background: hsla(160, 100%, 37%, 0.18);
+  background: rgba(92, 176, 185, 0.18);
 }
 
 .status-row {
@@ -612,8 +612,8 @@ async function removeBoard(b: AdminBoard) {
 }
 
 .status-label--on-sale {
-  background: hsla(160, 45%, 92%, 1);
-  color: hsla(160, 100%, 22%, 1);
+  background: hsl(160, 45%, 92%);
+  color: hsl(160, 100%, 22%);
 }
 
 .status-label--reserved {
@@ -628,8 +628,8 @@ async function removeBoard(b: AdminBoard) {
 
 @media (prefers-color-scheme: dark) {
   .status-label--on-sale {
-    background: hsla(160, 35%, 18%, 1);
-    color: hsla(145, 65%, 62%, 1);
+    background: hsl(160, 35%, 18%);
+    color: hsla(160, 65%, 62%, 1);
   }
 
   .status-label--reserved {

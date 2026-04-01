@@ -268,8 +268,8 @@ function truncate(s: string, n: number) {
 }
 
 .tab.router-link-active {
-  background: hsla(160, 100%, 37%, 0.12);
-  border-color: hsla(160, 100%, 37%, 0.35);
+  background: rgba(92, 176, 185, 0.12);
+  border-color: rgba(92, 176, 185, 0.35);
   font-weight: 600;
 }
 
@@ -419,7 +419,7 @@ function truncate(s: string, n: number) {
 .link {
   font-size: 0.82rem;
   font-weight: 600;
-  color: hsla(160, 100%, 30%, 1);
+  color: hsl(186, 38%, 30%);
   text-decoration: none;
 }
 
@@ -443,7 +443,7 @@ function truncate(s: string, n: number) {
 }
 
 .btn.primary {
-  background: hsla(160, 100%, 37%, 1);
+  background: var(--color-accent);
   color: #fff;
   font-weight: 600;
 }

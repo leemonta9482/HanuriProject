@@ -317,6 +317,7 @@ class ChatRoomOpenOut(BaseModel):
 class ChatRoomSummaryOut(BaseModel):
     room_id: int
     listing_kind: Literal["board", "wanted"]
+    listing_id: int
     peer_user_id: str
     peer_name: str
     listing_title: str

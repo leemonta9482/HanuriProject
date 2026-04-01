@@ -122,13 +122,17 @@ async function removeImage(imageId: number) {
     loading.value = false
   }
 }
+
+function onCancelBoardForm() {
+  router.back()
+}
 </script>
 
 <template>
   <div class="write-page">
     <header class="write-head">
       <nav class="crumb" aria-label="경로">
-        <RouterLink to="/" class="crumb-link">거래 목록</RouterLink>
+        <span class="crumb-muted">거래 목록</span>
         <span class="crumb-sep" aria-hidden="true">/</span>
         <template v-if="isEdit && existing">
           <RouterLink
@@ -265,7 +269,7 @@ async function removeImage(imageId: number) {
         </section>
 
         <div class="actions">
-          <RouterLink class="btn ghost" to="/">취소</RouterLink>
+          <button type="button" class="btn ghost" @click="onCancelBoardForm">취소</button>
           <button type="submit" class="btn primary" :disabled="loading">
             {{ loading ? '저장 중…' : '저장' }}
           </button>
@@ -297,7 +301,7 @@ async function removeImage(imageId: number) {
 }
 
 .crumb-link {
-  color: hsla(160, 100%, 30%, 1);
+  color: hsl(186, 38%, 30%);
   font-weight: 600;
   text-decoration: none;
 }
@@ -326,7 +330,7 @@ async function removeImage(imageId: number) {
   border-radius: 14px;
   background: linear-gradient(
     135deg,
-    hsla(160, 45%, 94%, 1) 0%,
+    hsla(186, 30%, 94%, 1) 0%,
     hsla(200, 35%, 96%, 1) 100%
   );
   border: 1px solid var(--color-border);
@@ -336,7 +340,7 @@ async function removeImage(imageId: number) {
   .head-inner {
     background: linear-gradient(
       135deg,
-      hsla(160, 25%, 14%, 1) 0%,
+      hsla(186, 18%, 14%, 1) 0%,
       hsla(200, 20%, 16%, 1) 100%
     );
   }
@@ -394,16 +398,16 @@ async function removeImage(imageId: number) {
   gap: 0.65rem;
   padding: 0.85rem 1rem;
   border-radius: 12px;
-  border: 2px solid hsla(160, 100%, 37%, 0.45);
-  background: hsla(160, 55%, 97%, 1);
-  box-shadow: 0 0 0 1px hsla(160, 100%, 37%, 0.15);
+  border: 2px solid rgba(92, 176, 185, 0.45);
+  background: hsl(186, 28%, 97%);
+  box-shadow: 0 0 0 1px rgba(92, 176, 185, 0.15);
 }
 
 @media (prefers-color-scheme: dark) {
   .edit-kind {
-    background: hsla(160, 30%, 14%, 1);
-    border-color: hsla(160, 50%, 32%, 0.65);
-    box-shadow: 0 0 0 1px hsla(160, 50%, 28%, 0.35);
+    background: hsl(186, 20%, 14%);
+    border-color: rgba(92, 176, 185, 0.45);
+    box-shadow: 0 0 0 1px rgba(92, 176, 185, 0.35);
   }
 }
 
@@ -500,7 +504,7 @@ async function removeImage(imageId: number) {
 }
 
 .req {
-  color: hsla(160, 100%, 32%, 1);
+  color: hsl(186, 38%, 32%);
   font-weight: 700;
 }
 
@@ -533,8 +537,8 @@ async function removeImage(imageId: number) {
 
 .input:focus {
   outline: none;
-  border-color: hsla(160, 100%, 37%, 0.55);
-  box-shadow: 0 0 0 3px hsla(160, 100%, 37%, 0.15);
+  border-color: rgba(92, 176, 185, 0.55);
+  box-shadow: 0 0 0 3px rgba(92, 176, 185, 0.15);
 }
 
 .textarea {
@@ -556,7 +560,7 @@ async function removeImage(imageId: number) {
 }
 
 .input-with-unit .input:focus {
-  border-right: 1px solid hsla(160, 100%, 37%, 0.55);
+  border-right: 1px solid rgba(92, 176, 185, 0.55);
 }
 
 .unit {
@@ -639,13 +643,13 @@ async function removeImage(imageId: number) {
 }
 
 .dropzone:hover {
-  border-color: hsla(160, 100%, 37%, 0.45);
-  background: hsla(160, 40%, 98%, 1);
+  border-color: rgba(92, 176, 185, 0.45);
+  background: hsl(186, 25%, 98%);
 }
 
 @media (prefers-color-scheme: dark) {
   .dropzone:hover {
-    background: hsla(160, 20%, 12%, 1);
+    background: hsl(186, 15%, 12%);
   }
 }
 
@@ -690,7 +694,7 @@ async function removeImage(imageId: number) {
   flex-shrink: 0;
   border: none;
   background: none;
-  color: hsla(160, 100%, 30%, 1);
+  color: hsl(186, 38%, 30%);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -698,7 +702,7 @@ async function removeImage(imageId: number) {
 }
 
 .file-remove:hover {
-  color: hsla(160, 100%, 24%, 1);
+  color: hsl(186, 38%, 24%);
 }
 
 .actions {
@@ -730,9 +734,9 @@ async function removeImage(imageId: number) {
 }
 
 .btn.primary {
-  background: linear-gradient(180deg, hsla(160, 100%, 38%, 1), hsla(160, 100%, 32%, 1));
+  background: linear-gradient(180deg, hsl(186, 40%, 52%), hsl(186, 38%, 44%));
   color: #fff;
-  box-shadow: 0 2px 8px hsla(160, 100%, 30%, 0.35);
+  box-shadow: 0 2px 8px rgba(92, 176, 185, 0.35);
 }
 
 .btn.primary:hover:not(:disabled) {

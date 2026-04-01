@@ -11,17 +11,37 @@
   flex-direction: column;
 }
 
+/* 링크 호버 글로우 — 다른 컴포넌트에서 동일 값 재사용 */
+:root {
+  --link-hover-text-shadow:
+    0 0 0.35rem rgba(255, 255, 255, 0.65),
+    0 0 0.75rem rgba(255, 255, 255, 0.4),
+    0 0 1.35rem rgba(255, 255, 255, 0.22);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --link-hover-text-shadow:
+      0 0 0.4rem rgba(255, 255, 255, 0.95),
+      0 0 0.9rem rgba(255, 255, 255, 0.55),
+      0 0 1.5rem rgba(255, 255, 255, 0.35);
+  }
+}
+
 a,
 .green {
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
+  color: var(--color-accent);
+  transition:
+    color 0.35s ease,
+    text-shadow 0.35s ease;
+  padding: 0;
 }
 
 @media (hover: hover) {
   a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
+    background-color: transparent;
+    text-shadow: var(--link-hover-text-shadow);
   }
 }
 

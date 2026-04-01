@@ -63,14 +63,13 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/wanted',
-      redirect: '/',
-    },
-    {
       path: '/wanted/:id',
       name: 'wanted-detail',
       component: () => import('../views/WantedDetailView.vue'),
-      meta: { requiresAuth: true },
+    },
+    {
+      path: '/wanted',
+      redirect: '/',
     },
     {
       path: '/login',
