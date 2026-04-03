@@ -17,6 +17,20 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+function routeQueryIsWanted(): boolean {
+  const t = route.query.type
+  return t === 'wanted' || (Array.isArray(t) && t.includes('wanted'))
+}
+
+/** 글 작성: 판매(board) 탭이 현재 경로와 일치 */
+const isActivePostWriteBoard = computed(
+  () => route.name === 'post-write' && !routeQueryIsWanted(),
+)
+/** 글 작성: 구매 희망(wanted) 탭이 현재 경로와 일치 */
+const isActivePostWriteWanted = computed(
+  () => route.name === 'post-write' && routeQueryIsWanted(),
+)
+
 const searchQuery = ref('')
 
 const sessionToast = ref({ show: false, message: '' })
@@ -55,6 +69,59 @@ function onSessionInvalid(e: Event) {
   })
 }
 
+const BRAND_PHRASES = ['대학생 중고 거래는?', '하누리에서!'] as const
+const BRAND_MS_TYPE = 120
+const BRAND_MS_DELETE = 70
+/** 다 쓴 뒤 → 지우기 전 대기 */
+const BRAND_HOLD_FULL = 1000
+/** 다 지운 뒤 → 다음 문구 타이핑 전 대기 */
+const BRAND_WAIT_AFTER_ERASE = 500
+
+const brandTypedText = ref('')
+let brandTypingCancelled = false
+
+function stopBrandTyping() {
+  brandTypingCancelled = true
+}
+
+function brandSleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+async function runBrandTypingLoop() {
+  brandTypingCancelled = false
+  let idx = 0
+  while (!brandTypingCancelled) {
+    const phrase = BRAND_PHRASES[idx % BRAND_PHRASES.length] ?? BRAND_PHRASES[0]
+    for (let i = 0; i < phrase.length; i++) {
+      if (brandTypingCancelled) return
+      brandTypedText.value += phrase.charAt(i)
+      await brandSleep(BRAND_MS_TYPE)
+    }
+    if (brandTypingCancelled) return
+    await brandSleep(BRAND_HOLD_FULL)
+    while (brandTypedText.value.length > 0) {
+      if (brandTypingCancelled) return
+      brandTypedText.value = brandTypedText.value.slice(0, -1)
+      await brandSleep(BRAND_MS_DELETE)
+    }
+    if (brandTypingCancelled) return
+    await brandSleep(BRAND_WAIT_AFTER_ERASE)
+    idx += 1
+  }
+}
+
+function startBrandTyping() {
+  if (typeof window === 'undefined') return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    brandTypedText.value = BRAND_PHRASES[0]
+    return
+  }
+  void runBrandTypingLoop()
+}
+
 onMounted(() => {
   if (auth.isLoggedIn) void auth.hydrateFromServer()
   window.addEventListener('hanuri:session-invalid', onSessionInvalid)
@@ -63,10 +130,11 @@ onMounted(() => {
     if (document.visibilityState !== 'visible' || !auth.isLoggedIn) return
     void auth.hydrateFromServer()
   }, 12_000)
+  startBrandTyping()
 })
 
 onUnmounted(() => {
-  stopBrandMotion()
+  stopBrandTyping()
 
   stopLiveStream()
   window.removeEventListener('hanuri:session-invalid', onSessionInvalid)
@@ -106,24 +174,6 @@ const canClearSearch = computed(() => {
   if (typeof q === 'string' && q.trim()) return true
   return searchQuery.value.trim().length > 0
 })
-
-/** 로고 옆 브랜드명: 영어 ↔ 한글 전환 (움직임 줄이기는 CSS에서만 완화 — JS로 끄지 않음) */
-const brandLang = ref<'en' | 'ko'>('en')
-let brandMotionTimer: ReturnType<typeof setInterval> | null = null
-
-function stopBrandMotion() {
-  if (brandMotionTimer != null) {
-    clearInterval(brandMotionTimer)
-    brandMotionTimer = null
-  }
-}
-
-function syncBrandMotion() {
-  if (brandMotionTimer != null) return
-  brandMotionTimer = window.setInterval(() => {
-    brandLang.value = brandLang.value === 'en' ? 'ko' : 'en'
-  }, 7000)
-}
 
 async function onLogout() {
   auth.logout()
@@ -237,10 +287,6 @@ watch(
   },
   { immediate: true },
 )
-
-onMounted(() => {
-  syncBrandMotion()
-})
 </script>
 
 <template>
@@ -250,11 +296,12 @@ onMounted(() => {
       :class="[auth.isLoggedIn ? 'header--with-search' : 'header--no-search']"
     >
       <div class="header-brand">
-        <RouterLink to="/" class="brand" aria-label="Hanuri">
-          <img class="brand-logo" :src="hanuriMark" alt="" width="36" height="36" />
-          <span class="brand-text-stack" aria-hidden="true">
-            <span class="brand-text" :class="{ 'brand-text--on': brandLang === 'en' }">Hanuri</span>
-            <span class="brand-text" :class="{ 'brand-text--on': brandLang === 'ko' }">하누리</span>
+        <RouterLink to="/" class="brand" aria-label="우리 대학 하누리, 홈으로 이동">
+          <img class="brand-logo" :src="hanuriMark" alt="" width="34" height="34" />
+          <span class="brand-typed-line" aria-hidden="true">
+            <span class="brand-typed-inner">
+              <span class="brand-typed">{{ brandTypedText }}</span><span class="brand-cursor" aria-hidden="true"></span>
+            </span>
           </span>
         </RouterLink>
       </div>
@@ -303,7 +350,7 @@ onMounted(() => {
                 type="button"
                 class="nav-write-dropdown-trigger"
                 aria-haspopup="menu"
-                aria-label="새 글 작성 — 호버하여 판매글 또는 구매 희망 선택"
+                aria-label="새 글 작성 — 호버하여 판매하기 또는 구매하기 선택"
               >
                 <span class="nav-write-dropdown-plus" aria-hidden="true">
                   <svg
@@ -325,16 +372,22 @@ onMounted(() => {
                 <RouterLink
                   :to="{ name: 'post-write' }"
                   class="nav-user-dropdown-item"
+                  active-class=""
+                  exact-active-class=""
+                  :class="{ 'nav-write-menu-item--here': isActivePostWriteBoard }"
                   role="menuitem"
                 >
-                  판매글
+                  판매하기
                 </RouterLink>
                 <RouterLink
                   :to="{ name: 'post-write', query: { type: 'wanted' } }"
                   class="nav-user-dropdown-item"
+                  active-class=""
+                  exact-active-class=""
+                  :class="{ 'nav-write-menu-item--here': isActivePostWriteWanted }"
                   role="menuitem"
                 >
-                  구매 희망
+                  구매하기
                 </RouterLink>
               </div>
             </div>
@@ -481,9 +534,12 @@ onMounted(() => {
   column-gap: clamp(0.75rem, 2vw, 1.25rem);
 }
 
-/* 왼쪽 1fr 영역 안에서 로고만 가운데 — 가운데 검색·오른쪽 1fr 비율은 그대로 */
+/* 왼쪽 1fr 트랙 안에서 로고 블록을 트랙의 가로 중앙에 (붙어 보이지 않도록 shrink-wrap + center) */
 .header--with-search .header-brand {
-  justify-self: stretch;
+  justify-self: center;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
   justify-content: center;
 }
 
@@ -519,64 +575,80 @@ onMounted(() => {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 1.42rem;
+  gap: 0.35rem;
+  font-size: clamp(1rem, 0.95rem + 0.2vw, 1.125rem);
   color: var(--color-heading);
   flex-shrink: 0;
   text-decoration: none;
+  /* 로고(고정) + 글 상자(고정 폭) → 타이핑 중에도 전체 폭이 거의 일정 */
+  min-width: 0;
 }
 
+/* 로고: em 아닌 고정 rem — 글 애니메이션과 무관하게 크기·위치 유지 */
 .brand-logo {
-  width: 2.25rem;
-  height: 2.25rem;
-  flex-shrink: 0;
+  flex: 0 0 2.125rem;
+  width: 2.125rem;
+  height: 2.125rem;
+  min-width: 2.125rem;
+  min-height: 2.125rem;
   object-fit: contain;
   display: block;
   border-radius: 8px;
 }
 
-.brand-text {
+.brand-typed-line {
+  flex: 0 1 100px;
+  width: 100px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 56px;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: inherit;
+}
+
+.brand-typed-inner {
+  max-width: 100%;
+  text-align: center;
+}
+
+.brand-typed {
+  display: inline;
   font-weight: 800;
   letter-spacing: -0.03em;
-  line-height: 1.2;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: keep-all;
 }
 
-/* 영어·한글 겹쳐 두고 페이드 — 그리드 셀 폭은 둘 중 긴 쪽에 맞춤 */
-.brand-text-stack {
-  display: inline-grid;
-  place-items: center;
-  vertical-align: middle;
+/* 커서 막대: 글자(rem) 기준 — 고정 로고와 별개 */
+.brand-cursor {
+  display: inline-block;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 0.11rem;
+  height: 1.05em;
+  margin-left: 0.12em;
+  border-radius: 0.06rem;
+  background-color: var(--color-accent, #38bdf8);
+  vertical-align: -0.12em;
+  animation: brand-cursor-blink 0.85s step-end infinite;
 }
 
-.brand-text-stack .brand-text {
-  grid-area: 1 / 1;
-  transition:
-    opacity 1s ease,
-    transform 1s cubic-bezier(0.33, 1, 0.68, 1);
-}
-
-.brand-text-stack .brand-text:not(.brand-text--on) {
-  opacity: 0;
-  transform: translateY(0.35rem);
-  pointer-events: none;
-}
-
-.brand-text-stack .brand-text.brand-text--on {
-  opacity: 1;
-  transform: translateY(0);
+@keyframes brand-cursor-blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-text-stack .brand-text {
-    transition: opacity 0.7s ease;
-  }
-
-  .brand-text-stack .brand-text:not(.brand-text--on) {
-    transform: none;
-  }
-
-  .brand-text-stack .brand-text.brand-text--on {
-    transform: none;
+  .brand-cursor {
+    animation: none;
+    opacity: 0.85;
   }
 }
 
@@ -602,7 +674,7 @@ onMounted(() => {
   display: flex;
   align-items: stretch;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--color-background);
   box-sizing: border-box;
@@ -621,10 +693,10 @@ onMounted(() => {
   flex: 1 1 auto;
   min-width: 6rem;
   width: 0;
-  height: 2.5rem;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.65rem;
-  font-size: 0.9rem;
+  height: 3rem;
+  min-height: 3rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
   line-height: 1.35;
   border: none;
   border-radius: 0;
@@ -646,10 +718,10 @@ onMounted(() => {
 .header-search-submit {
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: 2.75rem;
-  min-width: 2.75rem;
+  width: 3.25rem;
+  min-width: 3.25rem;
   height: auto;
-  min-height: 2.5rem;
+  min-height: 3rem;
   padding: 0;
   margin: 0;
   border: none;
@@ -674,19 +746,19 @@ onMounted(() => {
 }
 
 .header-search-icon {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.35rem;
+  height: 1.35rem;
   display: block;
 }
 
 .header-search-clear {
   box-sizing: border-box;
-  height: 2.5rem;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
+  height: 3rem;
+  min-height: 3rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
   line-height: 1.35;
-  border-radius: 8px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -896,7 +968,9 @@ onMounted(() => {
   background: rgba(92, 176, 185, 0.12);
 }
 
-.nav-user-dropdown-item.router-link-active {
+/* 프로필 메뉴 활성 링크와 + 메뉴(판매/구매 현재 위치) 동일 톤 */
+.nav-user-dropdown-item.router-link-active,
+.nav-write-dropdown-menu .nav-user-dropdown-item.nav-write-menu-item--here {
   color: var(--color-heading);
   font-weight: 600;
 }
@@ -1045,8 +1119,14 @@ onMounted(() => {
   .header-brand {
     justify-self: center;
     width: 100%;
+    max-width: 100%;
     display: flex;
     justify-content: center;
+  }
+
+  .header--with-search .header-brand {
+    width: 100%;
+    max-width: 100%;
   }
 
   /* 검색 줄: 로고처럼 가운데, 폭은 화면에 맞게 */

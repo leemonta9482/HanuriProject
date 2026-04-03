@@ -113,12 +113,12 @@ async function submit() {
     <div class="write-card">
       <div class="card-top">
         <p class="card-label">글 유형</p>
-        <div class="kind-segment" role="radiogroup" aria-label="판매 또는 구매 희망">
+        <div class="kind-segment" role="radiogroup" aria-label="판매하기 또는 구매하기">
           <label class="seg" :class="{ active: kind === 'board' }">
             <input v-model="kind" class="sr-only" type="radio" name="kind" value="board" />
             <span class="seg-icon" aria-hidden="true">📦</span>
             <span class="seg-text">
-              <span class="seg-title">판매글</span>
+              <span class="seg-title">판매하기</span>
               <span class="seg-desc">중고 물품 판매</span>
             </span>
           </label>
@@ -126,7 +126,7 @@ async function submit() {
             <input v-model="kind" class="sr-only" type="radio" name="kind" value="wanted" />
             <span class="seg-icon" aria-hidden="true">🔍</span>
             <span class="seg-text">
-              <span class="seg-title">구매 희망</span>
+              <span class="seg-title">구매하기</span>
               <span class="seg-desc">사고 싶은 물건 요청</span>
             </span>
           </label>
