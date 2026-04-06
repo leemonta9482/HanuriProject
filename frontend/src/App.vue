@@ -115,10 +115,6 @@ async function runBrandTypingLoop() {
 
 function startBrandTyping() {
   if (typeof window === 'undefined') return
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    brandTypedText.value = BRAND_PHRASES[0]
-    return
-  }
   void runBrandTypingLoop()
 }
 
@@ -642,13 +638,6 @@ watch(
 @keyframes brand-cursor-blink {
   50% {
     opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .brand-cursor {
-    animation: none;
-    opacity: 0.85;
   }
 }
 
