@@ -18,6 +18,22 @@ export function getBaseUrl(): string {
   return env || 'http://localhost:8000'
 }
 
+/** HTTP API 베이스와 동일 호스트로 WebSocket URL (경로만 `/api/ws`). */
+export function getWsUrl(): string {
+  const http = getBaseUrl()
+  try {
+    const u = new URL(http)
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
+    u.pathname = '/api/ws'
+    u.search = ''
+    u.hash = ''
+    return u.toString().replace(/\/$/, '')
+  } catch {
+    const base = http.replace(/^http/i, 'ws')
+    return `${base.replace(/\/$/, '')}/api/ws`
+  }
+}
+
 /** fetch가 응답 없이 멈출 때(백엔드 미기동·잘못된 호스트 등) UI가 영구 로딩되는 것을 막습니다. */
 export function createFetchAbortSignal(timeoutMs: number): AbortSignal {
   if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {

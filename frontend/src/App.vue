@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
-import { getBaseUrl, notifySessionInvalid, uploadsPublicUrl } from '@/api/client'
+import { getWsUrl, notifySessionInvalid, uploadsPublicUrl } from '@/api/client'
 import hanuriMark from '@/assets/hanuri-mark.png'
 import { useAuthStore } from '@/stores/auth'
 
@@ -39,7 +39,7 @@ const centerAlert = ref({ show: false, message: '' })
 const liveToasts = ref<LiveToastItem[]>([])
 let sessionPollTimer: ReturnType<typeof setInterval> | null = null
 let sessionInvalidOnce = false
-let liveAbort: AbortController | null = null
+let liveWs: WebSocket | null = null
 
 /** 헤더 인사말: DB에 저장된 이름(실명)만 사용 */
 const greetingName = computed(() => {
@@ -182,27 +182,10 @@ function closeCenterAlert() {
 }
 
 function stopLiveStream() {
-  liveAbort?.abort()
-  liveAbort = null
-}
-
-function parseSseChunks(buffer: string): { events: Record<string, unknown>[]; rest: string } {
-  const events: Record<string, unknown>[] = []
-  const parts = buffer.split('\n\n')
-  const rest = parts.pop() ?? ''
-  for (const block of parts) {
-    for (const line of block.split('\n')) {
-      if (line.startsWith('data: ')) {
-        try {
-          events.push(JSON.parse(line.slice(6)) as Record<string, unknown>)
-        } catch {
-          /* ignore */
-        }
-        break
-      }
-    }
+  if (liveWs) {
+    liveWs.close()
+    liveWs = null
   }
-  return { events, rest }
 }
 
 function pushLiveToast(ev: Record<string, unknown>) {
@@ -226,49 +209,43 @@ function onLiveToastClick(t: LiveToastItem) {
   }
 }
 
-async function readSseStream(body: ReadableStream<Uint8Array>, signal: AbortSignal) {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
-  while (!signal.aborted) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    const { events, rest } = parseSseChunks(buf)
-    buf = rest
-    for (const ev of events) {
-      const typ = ev.type
-      if (typ === 'ping' || typ === 'connected') continue
-      pushLiveToast(ev)
+function handleLivePayload(data: Record<string, unknown>) {
+  const typ = data.type
+  if (typ === 'error') {
+    const d = data.detail
+    if (d === 'unauthorized' || d === 'invalid_token') {
+      notifySessionInvalid()
     }
+    return
   }
+  if (typ === 'ping' || typ === 'pong' || typ === 'connected') return
+  window.dispatchEvent(new CustomEvent('hanuri:live', { detail: data }))
+  pushLiveToast(data)
 }
 
 async function runLiveStream() {
   while (auth.isLoggedIn) {
     const token = localStorage.getItem('hanuri_token')
     if (!token) break
-    const ac = new AbortController()
-    liveAbort = ac
-    try {
-      const res = await fetch(`${getBaseUrl()}/api/events/stream`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: ac.signal,
-      })
-      if (res.status === 401) {
-        notifySessionInvalid()
-        break
+    const url = `${getWsUrl()}?token=${encodeURIComponent(token)}`
+    const ws = new WebSocket(url)
+    liveWs = ws
+    const done = new Promise<void>((resolve) => {
+      ws.onclose = () => resolve()
+    })
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(String(ev.data)) as Record<string, unknown>
+        handleLivePayload(data)
+      } catch {
+        /* ignore */
       }
-      if (!res.ok || !res.body) {
-        await new Promise((r) => setTimeout(r, 3000))
-        continue
-      }
-      await readSseStream(res.body, ac.signal)
-    } catch {
-      /* 네트워크 끊김·abort */
-    } finally {
-      if (liveAbort === ac) liveAbort = null
     }
+    ws.onerror = () => {
+      /* onclose에서 재연결 */
+    }
+    await done
+    liveWs = null
     if (!auth.isLoggedIn) break
     await new Promise((r) => setTimeout(r, 3000))
   }

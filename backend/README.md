@@ -103,8 +103,8 @@ uv run fastapi dev main.py --host 0.0.0.0 --reload --port 8000
 | `deps.py`            | `get_current_user`, `require_admin` 등 공통 의존성                             |
 | `security.py`        | JWT 발급·검증, 비밀번호 해시                                                       |
 | `upload_storage.py`  | 학생증·프로필·판매 이미지 저장·삭제 규칙                                                  |
-| `realtime_events.py` | SSE용 **인메모리** 구독 큐 (프로세스 단일 인스턴스 전제)                                     |
-| `routers/`           | 도메인별 API (`auth`, `admin`, `boards`, `feed`, `wanted`, `chat`, `events`) |
+| `realtime_events.py` | **WebSocket** 실시간 푸시용 인메모리 연결·대기 큐 (`publish_event` → 사용자별 브로드캐스트, 단일 프로세스 전제) |
+| `routers/`           | 도메인별 API (`auth`, `admin`, `boards`, `feed`, `wanted`, `chat`, `ws`) |
 
 
 ### API 라우터 요약
@@ -114,7 +114,7 @@ uv run fastapi dev main.py --host 0.0.0.0 --reload --port 8000
 - **feed** — 동일 학교 기준 통합 피드(판매+구매 희망), 검색·정렬
 - **wanted** — 구매 희망글 CRUD
 - **chat** — 글 기준 1:1 채팅방·메시지
-- **events** — 로그인 사용자용 **SSE** 스트림 (`realtime_events`와 연동)
+- **ws** — 로그인 사용자용 **WebSocket** (`GET /api/ws?token=…`, 찜·채팅 알림 등, `realtime_events`와 연동)
 - **admin** — 회원·판매글·신고 관리
 
 ### 데이터·파일
@@ -125,5 +125,5 @@ uv run fastapi dev main.py --host 0.0.0.0 --reload --port 8000
 ### 운영 시 참고
 
 - CORS는 개발 편의상 넓게 열려 있을 수 있으므로, 배포 시 출처 제한을 권장합니다.
-- SSE 이벤트 큐는 DB가 아니라 **메모리**이므로, 다중 워커·다중 서버에서는 브로드캐스트 방식을 별도로 두어야 합니다.
+- **WebSocket** 연결과 `publish_event` 대기 큐는 DB가 아니라 **메모리**이므로, 다중 워커·다중 서버에서는 Redis 등으로 브로드캐스트를 맞춰야 합니다.
 

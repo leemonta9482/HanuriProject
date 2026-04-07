@@ -130,7 +130,7 @@ async function pollNew() {
 function startPoll() {
   stopPoll()
   if (selectedRoom.value?.closed_at) return
-  pollTimer = window.setInterval(() => void pollNew(), 4000)
+  pollTimer = window.setInterval(() => void pollNew(), 15000)
 }
 
 async function selectRoom(id: number) {
@@ -191,7 +191,23 @@ async function onSend() {
   }
 }
 
+function onHanuriLive(ev: Event) {
+  const ce = ev as CustomEvent<Record<string, unknown>>
+  const d = ce.detail
+  if (!d || d.type !== 'chat') return
+  const rid = d.room_id
+  if (typeof rid !== 'number' || rid !== selectedRoomId.value) return
+  const raw = d.message
+  if (!raw || typeof raw !== 'object') return
+  const msg = raw as ChatMessage
+  if (typeof msg.message_id !== 'number') return
+  if (messages.value.some((m) => m.message_id === msg.message_id)) return
+  messages.value = [...messages.value, msg]
+  void loadRooms()
+}
+
 onMounted(async () => {
+  window.addEventListener('hanuri:live', onHanuriLive)
   await loadRooms()
   const roomQ = route.query.room
   const rid = typeof roomQ === 'string' ? Number(roomQ) : NaN
@@ -223,7 +239,10 @@ watch(
   },
 )
 
-onUnmounted(() => stopPoll())
+onUnmounted(() => {
+  window.removeEventListener('hanuri:live', onHanuriLive)
+  stopPoll()
+})
 
 watch(messages, () => scrollChatToBottom(), { deep: true })
 
@@ -253,7 +272,7 @@ watch(loadingMessages, (loading) => {
             >
               <div class="room-thumb-wrap">
                 <img v-if="thumbUrl(r.thumbnail_path)" :src="thumbUrl(r.thumbnail_path)!" alt="" />
-                <span v-else class="room-thumb-ph">{{ r.listing_kind === 'wanted' ? '희망' : '상품' }}</span>
+                <span v-else class="room-thumb-ph">이미지 없음</span>
               </div>
               <div class="room-text">
                 <span class="room-peer"
@@ -469,7 +488,11 @@ watch(loadingMessages, (loading) => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  font-size: 0.7rem;
+  padding: 0 0.15rem;
+  box-sizing: border-box;
+  text-align: center;
+  line-height: 1.15;
+  font-size: 0.58rem;
   color: var(--color-text);
   opacity: 0.7;
 }

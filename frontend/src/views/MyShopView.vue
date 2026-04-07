@@ -293,8 +293,8 @@ async function removeBoard(it: BoardListItem) {
     <ul v-else class="grid grid--wanted">
       <li v-for="w in wantedItems" :key="w.wanted_id" class="card-wrap">
         <RouterLink :to="`/wanted/${w.wanted_id}`" class="card card--wanted">
-          <div class="thumb thumb--wanted" aria-hidden="true">
-            <span class="wanted-thumb__icon">🔍</span>
+          <div class="thumb empty">
+            <span class="ph">이미지 없음</span>
             <span class="wanted-thumb__badge">구매 희망</span>
           </div>
           <div class="meta">
@@ -522,6 +522,7 @@ async function removeBoard(it: BoardListItem) {
 }
 
 .thumb {
+  position: relative;
   flex: 0 0 auto;
   aspect-ratio: 4 / 3;
   width: 100%;
@@ -541,7 +542,7 @@ async function removeBoard(it: BoardListItem) {
 .thumb.empty .ph {
   font-size: 0.85rem;
   color: var(--color-text);
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 .card .meta {
@@ -727,22 +728,6 @@ async function removeBoard(it: BoardListItem) {
 .card--wanted:hover {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
-}
-
-.thumb--wanted {
-  position: relative;
-  background: linear-gradient(
-    145deg,
-    rgba(var(--color-accent-rgb), 0.28) 0%,
-    rgba(var(--color-accent-rgb), 0.08) 50%,
-    var(--color-background-mute) 100%
-  );
-}
-
-.wanted-thumb__icon {
-  font-size: 2rem;
-  line-height: 1;
-  opacity: 0.9;
 }
 
 .wanted-thumb__badge {

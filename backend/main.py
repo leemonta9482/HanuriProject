@@ -1,18 +1,35 @@
+from contextlib import asynccontextmanager
+
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from config import settings
-from routers import admin, auth, boards, chat, events, feed, wanted
+from realtime_events import process_pending_loop
+from routers import admin, auth, boards, chat, feed, wanted, ws
 
-app = FastAPI(title="HanuriProject API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    pending_task = asyncio.create_task(process_pending_loop())
+    yield
+    pending_task.cancel()
+    try:
+        await pending_task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(title="HanuriProject API", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(boards.router)
 app.include_router(feed.router)
 app.include_router(wanted.router)
 app.include_router(chat.router)
-app.include_router(events.router)
+app.include_router(ws.router)
 
 uploads_dir = settings.upload_dir
 uploads_dir.mkdir(parents=True, exist_ok=True)
