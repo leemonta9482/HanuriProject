@@ -263,15 +263,8 @@ watch(sentinel, (el) => {
       <li v-for="it in items" :key="cardKey(it)" class="card-wrap">
         <div class="card card--feed">
           <RouterLink :to="itemLink(it)" class="card-link">
-            <div
-              class="thumb"
-              :class="{
-                empty: !it.thumbnail_path,
-                'thumb--wanted': it.kind === 'wanted' && !it.thumbnail_path,
-              }"
-            >
+            <div class="thumb" :class="{ empty: !it.thumbnail_path }">
               <img v-if="thumbUrl(it.thumbnail_path)" :src="thumbUrl(it.thumbnail_path)!" alt="" />
-              <span v-else-if="it.kind === 'wanted'" class="wanted-thumb__icon" aria-hidden="true">🔍</span>
               <span v-else class="ph">이미지 없음</span>
               <span
                 v-if="it.kind === 'board' && it.status"
@@ -598,21 +591,6 @@ watch(sentinel, (el) => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.thumb.thumb--wanted {
-  background: linear-gradient(
-    145deg,
-    rgba(var(--color-accent-rgb), 0.28) 0%,
-    rgba(var(--color-accent-rgb), 0.08) 50%,
-    var(--color-background-mute) 100%
-  );
-}
-
-.wanted-thumb__icon {
-  font-size: 2rem;
-  line-height: 1;
-  opacity: 0.9;
 }
 
 .thumb img {

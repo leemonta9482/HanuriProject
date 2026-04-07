@@ -1,64 +1,62 @@
-"""메모리 기반 사용자별 이벤트 큐(SSE 푸시용). DB 테이블 없음. 단일 프로세스 전제."""
+"""사용자별 WebSocket 연결. 동기 라우트에서 publish_event 시 스레드 안전 큐로 async 브로드캐스트."""
 
 from __future__ import annotations
 
 import asyncio
-import json
 import queue
 from collections import defaultdict
 from typing import Any
 
-from fastapi import Request
+from starlette.websockets import WebSocket
 
-_subscribers: dict[str, list[queue.Queue[dict[str, Any]]]] = defaultdict(list)
-
-
-def subscribe(user_id: str) -> queue.Queue[dict[str, Any]]:
-    q: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=256)
-    _subscribers[user_id].append(q)
-    return q
+_connections: dict[str, list[WebSocket]] = defaultdict(list)
+_pending: queue.Queue[tuple[str, dict[str, Any]]] = queue.Queue()
 
 
-def unsubscribe(user_id: str, q: queue.Queue[dict[str, Any]]) -> None:
-    lst = _subscribers.get(user_id)
+def register_ws(user_id: str, ws: WebSocket) -> None:
+    _connections[user_id].append(ws)
+
+
+def unregister_ws(user_id: str, ws: WebSocket) -> None:
+    lst = _connections.get(user_id)
     if not lst:
         return
     try:
-        lst.remove(q)
+        lst.remove(ws)
     except ValueError:
         pass
+    if not lst:
+        _connections.pop(user_id, None)
 
 
 def publish_event(user_id: str, payload: dict[str, Any]) -> None:
-    for q in list(_subscribers.get(user_id, [])):
-        try:
-            q.put_nowait(payload)
-        except queue.Full:
-            pass
+    _pending.put((user_id, payload))
 
 
-def _event_wait(q: queue.Queue[dict[str, Any]], timeout: float) -> dict[str, Any] | None:
+def _get_pending_item() -> tuple[str, dict[str, Any]] | None:
     try:
-        return q.get(timeout=timeout)
+        return _pending.get(timeout=0.5)
     except queue.Empty:
         return None
 
 
-# 대기 시간이 길면 서버 reload 시 to_thread가 끝날 때까지 종료가 지연됨 → 짧게 유지
-_SSE_POLL_SEC = 2.5
+async def _broadcast(user_id: str, payload: dict[str, Any]) -> None:
+    conns = list(_connections.get(user_id, []))
+    dead: list[WebSocket] = []
+    for ws in conns:
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        unregister_ws(user_id, ws)
 
 
-async def sse_event_generator(user_id: str, request: Request):
-    q = subscribe(user_id)
-    try:
-        yield f"data: {json.dumps({'type': 'connected'}, ensure_ascii=False)}\n\n"
-        while True:
-            if await request.is_disconnected():
-                break
-            item = await asyncio.to_thread(_event_wait, q, _SSE_POLL_SEC)
-            if item is None:
-                yield f"data: {json.dumps({'type': 'ping'}, ensure_ascii=False)}\n\n"
-            else:
-                yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
-    finally:
-        unsubscribe(user_id, q)
+async def process_pending_loop() -> None:
+    while True:
+        item = await asyncio.to_thread(_get_pending_item)
+        if item is None:
+            await asyncio.sleep(0)
+            continue
+        uid, payload = item
+        await _broadcast(uid, payload)

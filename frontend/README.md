@@ -88,7 +88,7 @@ npm run preview
 
 | 경로 | 설명 |
 |------|------|
-| `src/App.vue` | 레이아웃·헤더(로고·검색·네비·드롭다운)·전역 알림·SSE 등 |
+| `src/App.vue` | 레이아웃·헤더(로고·검색·네비·드롭다운)·전역 알림(WebSocket)·전역 이벤트 등 |
 | `src/main.ts` | 앱 부트스트랩, Pinia·Router 연결 |
 | `src/router/index.ts` | 경로·`meta.requiresAuth` / `requiresAdmin` 가드 |
 | `src/views/` | 화면별 뷰(홈, 글 작성·상세, 채팅, 로그인, 관리자 등) |

@@ -113,11 +113,7 @@ async function remove() {
 
     <div class="layout">
       <div class="gallery">
-        <div class="wanted-panel" aria-hidden="true">
-          <span class="wanted-panel__glow" />
-          <span class="wanted-panel__icon">🔍</span>
-          <span class="wanted-panel__badge">구매 희망</span>
-        </div>
+        <div class="no-img">이미지 없음</div>
       </div>
 
       <aside class="summary">
@@ -236,53 +232,18 @@ async function remove() {
   min-width: 0;
 }
 
-.wanted-panel {
-  position: relative;
+.no-img {
   width: 100%;
   box-sizing: border-box;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-  aspect-ratio: 16 / 10;
-  max-height: 420px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(
-    145deg,
-    rgba(var(--color-accent-rgb), 0.3) 0%,
-    rgba(var(--color-accent-rgb), 0.09) 45%,
-    var(--color-background-mute) 100%
-  );
-}
-
-.wanted-panel__glow {
-  position: absolute;
-  inset: -35%;
-  background: radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.16) 0%, transparent 52%);
-  pointer-events: none;
-}
-
-.wanted-panel__icon {
-  position: relative;
-  font-size: clamp(2.5rem, 8vw, 3.25rem);
-  line-height: 1;
-  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.1));
-  opacity: 0.92;
-}
-
-.wanted-panel__badge {
-  position: absolute;
-  left: 0.75rem;
-  top: 0.75rem;
-  padding: 0.2rem 0.55rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  border-radius: 999px;
-  background: hsla(186, 42%, 22%, 0.92);
-  color: #fff;
-  letter-spacing: -0.02em;
+  aspect-ratio: 16 / 10;
+  max-height: 420px;
+  padding: 1rem;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px dashed var(--color-border);
 }
 
 @media (min-width: 900px) {

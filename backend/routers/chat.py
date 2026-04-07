@@ -313,6 +313,12 @@ def send_message(
     preview = msg.body
     if len(preview) > 120:
         preview = preview[:119] + "…"
+    out = ChatMessageOut(
+        message_id=msg.message_id,
+        sender_id=msg.sender_id,
+        body=msg.body,
+        created_at=msg.created_at,
+    )
     publish_event(
         peer_id,
         {
@@ -320,11 +326,7 @@ def send_message(
             "room_id": room_id,
             "title": "새 채팅",
             "body": f"{sender_name}: {preview}",
+            "message": out.model_dump(mode="json"),
         },
     )
-    return ChatMessageOut(
-        message_id=msg.message_id,
-        sender_id=msg.sender_id,
-        body=msg.body,
-        created_at=msg.created_at,
-    )
+    return out
