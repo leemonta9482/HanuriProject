@@ -1,23 +1,84 @@
+import hashlib
+import os
+import tempfile
+from io import BytesIO
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.datastructures import Headers, UploadFile as StarletteUploadFile
 
 from database import get_db
 from deps import get_current_user
 from models import User
+from ocr import ocr_texts_contain_name_and_school, run_ocr_on_image_path
 from schemas import (
     LoginResponse,
     LoginUserInfo,
     PasswordChangeBody,
     RegisterResponse,
+    StudentIdVerifyResponse,
     UserLogin,
     UserProfileOut,
 )
-from security import create_access_token, hash_password, verify_password
+from security import (
+    create_access_token,
+    create_student_id_verify_token,
+    decode_student_id_verify_token,
+    hash_password,
+    verify_password,
+)
 from upload_storage import delete_uploaded_file, save_profile_image, save_student_id_card
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+@router.post("/verify-student-id", response_model=StudentIdVerifyResponse)
+async def verify_student_id(
+    name: str = Form(..., min_length=1, max_length=50),
+    school_name: str = Form(..., min_length=1, max_length=100),
+    student_id_card: UploadFile = File(..., description="학생증 이미지"),
+) -> StudentIdVerifyResponse:
+    """입력한 이름·학교명이 학생증 OCR 결과에 포함되는지 검사 후, 회원가입용 짧은 수명 토큰을 발급합니다."""
+    raw = await student_id_card.read()
+    if len(raw) == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="빈 파일은 업로드할 수 없습니다.")
+    file_hash = hashlib.sha256(raw).hexdigest()
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
+    os.close(fd)
+    try:
+        Path(tmp_path).write_bytes(raw)
+        try:
+            texts = run_ocr_on_image_path(tmp_path)
+        except RuntimeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(e),
+            ) from e
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미지를 읽을 수 없습니다.") from e
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"학생증 인식에 실패했습니다: {e!s}",
+            ) from e
+
+        if not ocr_texts_contain_name_and_school(texts, name, school_name):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="학생증에서 입력하신 이름 또는 학교명을 찾지 못했습니다. 사진이 선명한지, 이름·학교명이 카드에 적힌 대로인지 확인해 주세요.",
+            )
+
+        token = create_student_id_verify_token(name, school_name, file_hash)
+        return StudentIdVerifyResponse(verified=True, verification_token=token)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
 
 @router.post("/register", response_model=RegisterResponse)
@@ -30,10 +91,35 @@ async def register(
     email: str = Form(..., min_length=1, max_length=100),
     student_id: str | None = Form(None),
     interest_major: str | None = Form(None),
+    student_id_verification_token: str = Form(..., description="POST /verify-student-id 로 발급받은 토큰"),
     student_id_card: UploadFile = File(..., description="학생증 이미지"),
     db: Session = Depends(get_db),
 ) -> RegisterResponse:
-    relative_path = await save_student_id_card(student_id_card)
+    raw = await student_id_card.read()
+    if len(raw) == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="빈 파일은 업로드할 수 없습니다.")
+    file_hash = hashlib.sha256(raw).hexdigest()
+    try:
+        vn, vs, vh = decode_student_id_verify_token(student_id_verification_token)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    if vh != file_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="학생증 이미지가 인증 당시와 다릅니다. 동일한 사진으로 다시 인증해 주세요.",
+        )
+    if vn != name.strip() or vs != school_name.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이름 또는 학교명이 학생증 인증 당시와 일치하지 않습니다.",
+        )
+
+    upload = StarletteUploadFile(
+        file=BytesIO(raw),
+        filename=student_id_card.filename or "student_id.jpg",
+        headers=Headers({"content-type": student_id_card.content_type or "image/jpeg"}),
+    )
+    relative_path = await save_student_id_card(upload)
     user = User(
         user_id=user_id.strip(),
         password=hash_password(password),

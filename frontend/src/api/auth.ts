@@ -8,6 +8,24 @@ import type {
 } from './types'
 import { apiFetch, authHeaders, authHeadersJson, createFetchAbortSignal, getBaseUrl, parseJsonError } from './client'
 
+export async function verifyStudentId(payload: {
+  name: string
+  school_name: string
+  student_id_card: File
+}): Promise<{ verified: boolean; verification_token: string }> {
+  const form = new FormData()
+  form.append('name', payload.name.trim())
+  form.append('school_name', payload.school_name.trim())
+  form.append('student_id_card', payload.student_id_card)
+
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/verify-student-id`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as { verified: boolean; verification_token: string }
+}
+
 export async function registerUser(payload: RegisterWithStudentCardPayload): Promise<RegisterResponse> {
   const form = new FormData()
   form.append('user_id', payload.user_id.trim())
@@ -18,6 +36,7 @@ export async function registerUser(payload: RegisterWithStudentCardPayload): Pro
   form.append('email', payload.email.trim())
   if (payload.student_id?.trim()) form.append('student_id', payload.student_id.trim())
   if (payload.interest_major?.trim()) form.append('interest_major', payload.interest_major.trim())
+  form.append('student_id_verification_token', payload.student_id_verification_token)
   form.append('student_id_card', payload.student_id_card)
 
   const res = await apiFetch(`${getBaseUrl()}/api/auth/register`, {

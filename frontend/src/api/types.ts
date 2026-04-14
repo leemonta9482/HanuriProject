@@ -12,6 +12,8 @@ export interface RegisterPayload {
 /** multipart 회원가입 (학생증 이미지 필수) */
 export type RegisterWithStudentCardPayload = RegisterPayload & {
   student_id_card: File
+  /** POST /api/auth/verify-student-id 로 발급 (이름·학교·이미지와 일치) */
+  student_id_verification_token: string
 }
 
 export interface RegisterResponse {

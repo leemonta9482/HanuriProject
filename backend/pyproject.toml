@@ -3,7 +3,7 @@ name = "backend"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.135.2",
     "sqlalchemy>=2.0.0",
@@ -12,4 +12,17 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "pydantic-settings>=2.0.0",
     "email-validator>=2.0.0",
+    "pillow>=10.0.0",
+    # 학생증 OCR (ocr.py) — CPU 휠은 Paddle 공식 인덱스에서 받음
+    "paddlepaddle==3.2.0",
+    "paddleocr>=3.0.0",
 ]
+
+# paddlepaddle PyPI 기본 인덱스에 없을 때(Windows CPU 등) 공식 stable/cpu 휠 사용
+[tool.uv.sources]
+paddlepaddle = { index = "paddle-cpu" }
+
+[[tool.uv.index]]
+name = "paddle-cpu"
+url = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
+explicit = true

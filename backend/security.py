@@ -5,6 +5,8 @@ from jose import JWTError, jwt
 
 from config import settings
 
+STUDENT_ID_VERIFY_PURPOSE = "student_id_verify"
+
 
 def hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -53,3 +55,32 @@ def verify_token_subject(token: str) -> str:
     """레거시 호환. tv 검증은 하지 않습니다."""
     user_id, _ = decode_token_claims(token)
     return user_id
+
+
+def create_student_id_verify_token(name: str, school_name: str, file_sha256_hex: str) -> str:
+    """학생증 OCR 인증 성공 후, 회원가입 시 동일 이미지·이름·학교 검증용 짧은 수명 JWT."""
+    expire = datetime.now(UTC) + timedelta(minutes=20)
+    payload = {
+        "pur": STUDENT_ID_VERIFY_PURPOSE,
+        "n": name.strip(),
+        "s": school_name.strip(),
+        "h": file_sha256_hex,
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_student_id_verify_token(token: str) -> tuple[str, str, str]:
+    """(name, school_name, file_sha256_hex) 반환."""
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except JWTError as e:
+        raise ValueError("학생증 인증이 만료되었거나 유효하지 않습니다. 다시 인증해 주세요.") from e
+    if payload.get("pur") != STUDENT_ID_VERIFY_PURPOSE:
+        raise ValueError("유효하지 않은 학생증 인증 토큰입니다.")
+    n = payload.get("n")
+    s = payload.get("s")
+    h = payload.get("h")
+    if not isinstance(n, str) or not isinstance(s, str) or not isinstance(h, str):
+        raise ValueError("유효하지 않은 학생증 인증 토큰입니다.")
+    return n.strip(), s.strip(), h.strip()
