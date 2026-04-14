@@ -12,7 +12,7 @@ os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 if os.environ.get("OCR_ENABLE_MKLDNN", "").lower() not in ("1", "true", "yes"):
     os.environ.setdefault("FLAGS_use_mkldnn", "0")
 
-_MAX_INPUT_SIDE = 1600
+_MAX_INPUT_SIDE = 3000
 _TEXT_DET_LIMIT_SIDE_LEN = 960
 
 # lazy singleton
