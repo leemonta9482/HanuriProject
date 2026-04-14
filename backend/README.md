@@ -38,7 +38,7 @@ uv venv .venv
 uv sync
 ```
 
-`uv sync`는 `pyproject.toml` / `uv.lock` 기준으로 `fastapi[standard]`, SQLAlchemy, PyMySQL 등이 설치됩니다. 패키지 목록은 `uv pip list`로 확인할 수 있습니다.
+`uv sync`는 `pyproject.toml` / `uv.lock` 기준으로 `fastapi[standard]`, SQLAlchemy, PyMySQL, PaddleOCR·PaddlePaddle 등이 설치됩니다. Paddle은 `pyproject.toml`의 `[tool.uv.sources]`에 맞춰 CPU 휠 인덱스를 사용합니다. 패키지 목록은 `uv pip list`로 확인할 수 있습니다.
 
 ### 4. 환경 변수·데이터베이스
 
@@ -82,34 +82,36 @@ uv run fastapi dev main.py --host 0.0.0.0 --reload --port 8000
 ### 주요 기술
 
 
-| 구분    | 내용                                                      |
-| ----- | ------------------------------------------------------- |
-| 프레임워크 | FastAPI                                                 |
-| DB    | MySQL (연결: SQLAlchemy 2.x + PyMySQL, `utf8mb4`)         |
-| 설정    | Pydantic Settings, `backend/.env` (없으면 `config.py` 기본값) |
-| 인증    | JWT(Bearer), 비밀번호 bcrypt, `token_version`으로 세션 무효화      |
+| 구분    | 내용                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 프레임워크 | FastAPI                                                                                                                              |
+| DB    | MySQL (연결: SQLAlchemy 2.x + PyMySQL, `utf8mb4`)                                                                                      |
+| 설정    | Pydantic Settings, `backend/.env` (없으면 `config.py` 기본값)                                                                              |
+| 인증    | JWT(Bearer), 비밀번호 bcrypt, `token_version`으로 세션 무효화                                                                                   |
+| OCR   | **PaddleOCR**, **PaddlePaddle** (`paddleocr`, `paddlepaddle`), 이미지 처리 **Pillow** — 학생증 이미지에서 텍스트 추출 후 회원가입 시 이름·학교명 일치 검증 (`ocr.py`) |
 
 
 ### 디렉터리·모듈 역할
 
 
-| 경로                   | 설명                                                                       |
-| -------------------- | ------------------------------------------------------------------------ |
-| `main.py`            | 앱 생성, 라우터 마운트, CORS, `/uploads` 정적 마운트, 헬스 `/`                           |
-| `config.py`          | DB·JWT·업로드 경로 등 환경 설정                                                    |
-| `database.py`        | SQLAlchemy 엔진·세션 팩토리, `get_db` 의존성                                       |
-| `models.py`          | ORM 엔티티 (User, Board, WantedPost, Chat 등)                                |
-| `schemas.py`         | 요청/응답 Pydantic 모델                                                        |
-| `deps.py`            | `get_current_user`, `require_admin` 등 공통 의존성                             |
-| `security.py`        | JWT 발급·검증, 비밀번호 해시                                                       |
-| `upload_storage.py`  | 학생증·프로필·판매 이미지 저장·삭제 규칙                                                  |
+| 경로                   | 설명                                                                             |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `main.py`            | 앱 생성, 라우터 마운트, CORS, `/uploads` 정적 마운트, 헬스 `/`                                 |
+| `config.py`          | DB·JWT·업로드 경로 등 환경 설정                                                          |
+| `database.py`        | SQLAlchemy 엔진·세션 팩토리, `get_db` 의존성                                             |
+| `models.py`          | ORM 엔티티 (User, Board, WantedPost, Chat 등)                                      |
+| `schemas.py`         | 요청/응답 Pydantic 모델                                                              |
+| `deps.py`            | `get_current_user`, `require_admin` 등 공통 의존성                                   |
+| `security.py`        | JWT 발급·검증, 비밀번호 해시                                                             |
+| `upload_storage.py`  | 학생증·프로필·판매 이미지 저장·삭제 규칙                                                        |
+| `ocr.py`             | PaddleOCR로 학생증 이미지 OCR, 이름·학교명 포함 여부 검사 (`routers/auth` 학생증 인증과 연동)            |
 | `realtime_events.py` | **WebSocket** 실시간 푸시용 인메모리 연결·대기 큐 (`publish_event` → 사용자별 브로드캐스트, 단일 프로세스 전제) |
-| `routers/`           | 도메인별 API (`auth`, `admin`, `boards`, `feed`, `wanted`, `chat`, `ws`) |
+| `routers/`           | 도메인별 API (`auth`, `admin`, `boards`, `feed`, `wanted`, `chat`, `ws`)           |
 
 
 ### API 라우터 요약
 
-- **auth** — 회원가입·로그인·프로필·비밀번호
+- **auth** — 회원가입(학생증 OCR 인증)·로그인·프로필·비밀번호
 - **boards** — 판매글 CRUD, 이미지, 찜, 구매 요청, 신고
 - **feed** — 동일 학교 기준 통합 피드(판매+구매 희망), 검색·정렬
 - **wanted** — 구매 희망글 CRUD
