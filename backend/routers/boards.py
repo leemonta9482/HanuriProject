@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, aliased, selectinload
 
 from database import get_db
 from deps import get_current_user
-from models import Board, BoardImage, Favorite, PurchaseRequest, Report, User
+from models import Board, BoardImage, Favorite, Report, User
 from schemas import (
     BoardDetailOut,
     BoardImageOut,
@@ -15,8 +15,6 @@ from schemas import (
     BoardListResponse,
     BoardStatusUpdate,
     BoardUpdate,
-    PurchaseRequestOut,
-    PurchaseRequestStatusUpdate,
     ReportCreate,
 )
 from realtime_events import publish_event
@@ -177,7 +175,6 @@ def _board_detail_out(
     imgs = sorted(board.images, key=lambda x: x.sort_order)
     image_out = [BoardImageOut.model_validate(i) for i in imgs]
     is_fav = False
-    my_pr: str | None = None
     if viewer:
         is_fav = (
             db.scalar(
@@ -187,15 +184,6 @@ def _board_detail_out(
             )
             or 0
         ) > 0
-        if viewer.user_id != board.user_id:
-            pr = db.execute(
-                select(PurchaseRequest).where(
-                    PurchaseRequest.board_id == board.board_id,
-                    PurchaseRequest.buyer_id == viewer.user_id,
-                )
-            ).scalar_one_or_none()
-            if pr:
-                my_pr = pr.status
     fav_count = (
         db.scalar(select(func.count(Favorite.id)).where(Favorite.board_id == board.board_id)) or 0
     )
@@ -215,7 +203,6 @@ def _board_detail_out(
         updated_at=board.updated_at,
         is_favorited=is_fav,
         is_owner=bool(viewer and viewer.user_id == board.user_id),
-        my_purchase_request_status=my_pr,
         favorite_count=int(fav_count),
     )
 
@@ -619,110 +606,6 @@ def list_my_boards(
         page=page,
         page_size=page_size,
         pages=pages,
-    )
-
-
-@router.post("/boards/{board_id}/purchase-requests", response_model=PurchaseRequestOut)
-def create_purchase_request(
-    board_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> PurchaseRequestOut:
-    board = db.get(Board, board_id)
-    if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
-    _assert_same_school_board(db, board, user)
-    if board.user_id == user.user_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="본인 게시글에는 구매 신청을 할 수 없습니다.")
-    pr = PurchaseRequest(board_id=board_id, buyer_id=user.user_id, status="REQUESTED")
-    db.add(pr)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 구매 신청한 게시글입니다.",
-        ) from None
-    db.refresh(pr)
-    buyer = db.get(User, user.user_id)
-    return PurchaseRequestOut(
-        id=pr.id,
-        board_id=pr.board_id,
-        buyer_id=pr.buyer_id,
-        buyer_name=buyer.name if buyer else pr.buyer_id,
-        status=pr.status,
-        created_at=pr.created_at,
-    )
-
-
-@router.get("/boards/{board_id}/purchase-requests", response_model=list[PurchaseRequestOut])
-def list_purchase_requests(
-    board_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> list[PurchaseRequestOut]:
-    board = db.get(Board, board_id)
-    if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
-    if board.user_id != user.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="판매자만 조회할 수 있습니다.")
-    rows = db.execute(
-        select(PurchaseRequest, User.name)
-        .join(User, PurchaseRequest.buyer_id == User.user_id)
-        .where(PurchaseRequest.board_id == board_id)
-        .order_by(desc(PurchaseRequest.created_at))
-    ).all()
-    return [
-        PurchaseRequestOut(
-            id=pr.id,
-            board_id=pr.board_id,
-            buyer_id=pr.buyer_id,
-            buyer_name=name,
-            status=pr.status,
-            created_at=pr.created_at,
-        )
-        for pr, name in rows
-    ]
-
-
-@router.patch("/purchase-requests/{request_id}", response_model=PurchaseRequestOut)
-def update_purchase_request(
-    request_id: int,
-    body: PurchaseRequestStatusUpdate,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> PurchaseRequestOut:
-    pr = db.get(PurchaseRequest, request_id)
-    if pr is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="구매 요청을 찾을 수 없습니다.")
-    board = db.get(Board, pr.board_id)
-    if board is None or board.user_id != user.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="판매자만 처리할 수 있습니다.")
-    if pr.status != "REQUESTED":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 처리된 요청입니다.")
-    pr.status = body.status
-    if body.status == "ACCEPTED":
-        board.status = "RESERVED"
-        others = db.execute(
-            select(PurchaseRequest).where(
-                PurchaseRequest.board_id == board.board_id,
-                PurchaseRequest.id != pr.id,
-                PurchaseRequest.status == "REQUESTED",
-            )
-        ).scalars().all()
-        for o in others:
-            o.status = "REJECTED"
-    db.commit()
-    db.refresh(pr)
-    buyer = db.get(User, pr.buyer_id)
-    return PurchaseRequestOut(
-        id=pr.id,
-        board_id=pr.board_id,
-        buyer_id=pr.buyer_id,
-        buyer_name=buyer.name if buyer else pr.buyer_id,
-        status=pr.status,
-        created_at=pr.created_at,
     )
 
 

@@ -207,7 +207,6 @@ class BoardDetailOut(BaseModel):
     updated_at: object | None = None
     is_favorited: bool = False
     is_owner: bool = False
-    my_purchase_request_status: str | None = None
     favorite_count: int = 0
 
 
@@ -221,19 +220,6 @@ class BoardUpdate(BaseModel):
 
 class BoardStatusUpdate(BaseModel):
     status: Literal["ON_SALE", "RESERVED", "SOLD"]
-
-
-class PurchaseRequestOut(BaseModel):
-    id: int
-    board_id: int
-    buyer_id: str
-    buyer_name: str
-    status: str
-    created_at: object | None = None
-
-
-class PurchaseRequestStatusUpdate(BaseModel):
-    status: Literal["ACCEPTED", "REJECTED"]
 
 
 class ReportCreate(BaseModel):
@@ -331,6 +317,19 @@ class ChatRoomSummaryOut(BaseModel):
     last_message_preview: str | None = None
     last_message_at: object | None = None
     closed_at: object | None = None
+    i_am_peer: bool = False
+    initiator_blocked_by_me: bool = False
+    i_am_blocked_by_peer: bool = False
+
+
+class BlockUserCreate(BaseModel):
+    blocked_user_id: str = Field(..., min_length=1, max_length=50)
+
+
+class UserBlockEntryOut(BaseModel):
+    blocked_user_id: str
+    blocked_name: str
+    created_at: object | None = None
 
 
 class ChatMessageOut(BaseModel):
@@ -340,8 +339,14 @@ class ChatMessageOut(BaseModel):
     created_at: object | None = None
 
 
+class ChatRoomClosedInfo(BaseModel):
+    """종료된 방의 하단 안내. DB에는 누가 끊었는지 저장하지 않으므로 문구는 항상 동일합니다."""
+    notice_text: str = "대화가 종료되었습니다."
+
+
 class ChatMessagesResponse(BaseModel):
     messages: list[ChatMessageOut]
+    room_closed: ChatRoomClosedInfo | None = None
 
 
 class SendChatMessageRequest(BaseModel):

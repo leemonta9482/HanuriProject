@@ -15,7 +15,7 @@ const open = ref(false)
           <strong>접근</strong> 로그인한 사용자만 목록·상세 열람 가능. 판매자의 학교명이 내 학교와 같을 때만 표시(관리자는 전체).
         </li>
         <li><strong>1-1</strong> 판매 제목·본문·가격·거래 방식(직거래/택배/둘 다)·희망 장소·다중 이미지 업로드</li>
-        <li><strong>1-2</strong> 구매자 → 판매자 구매 신청 (요청 목록·수락/거절, 수락 시 예약중 처리)</li>
+        <li><strong>1-2</strong> 구매하기는 채팅으로 연결 (별도 구매 신청·수락 테이블 없음)</li>
         <li><strong>1-3</strong> 찜하기 / 찜 목록 페이지</li>
         <li><strong>1-4</strong> 판매자 본인 글 수정·이미지 추가·거래 상태 변경</li>
         <li><strong>1-5</strong> 판매자 본인 글 삭제</li>
@@ -23,7 +23,7 @@ const open = ref(false)
         <li><strong>1-7</strong> 게시글 신고 (사유 입력, 동일 글 1회)</li>
         <li><strong>1-8</strong> 구매 희망글 작성·통합 거래 목록 노출·상세·삭제 (별도 구매 희망 게시판 없음)</li>
       </ul>
-      <p class="note">채팅은 별도 연동 시 구매 신청과 함께 확장할 수 있습니다.</p>
+      <p class="note">판매 상태(판매중·예약·거래완료)는 판매자·관리자가 직접 변경합니다.</p>
     </div>
   </section>
 </template>
