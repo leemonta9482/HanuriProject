@@ -71,23 +71,6 @@ CREATE TABLE Favorite (
     FOREIGN KEY (board_id) REFERENCES Board(board_id) ON DELETE CASCADE
 );
 
--- 구매요청 테이블
-CREATE TABLE PurchaseRequest (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    
-    board_id INT NOT NULL,
-    buyer_id VARCHAR(50) NOT NULL,
-    
-    status ENUM('REQUESTED', 'ACCEPTED', 'REJECTED') DEFAULT 'REQUESTED',
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    UNIQUE KEY uniq_board_buyer (board_id, buyer_id),
-    
-    FOREIGN KEY (board_id) REFERENCES Board(board_id) ON DELETE CASCADE,
-    FOREIGN KEY (buyer_id) REFERENCES User(user_id) ON DELETE CASCADE
-);
-
 -- 판매글 이미지 (여러 장)
 CREATE TABLE BoardImage (
     image_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -153,4 +136,15 @@ CREATE TABLE ChatMessage (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (room_id) REFERENCES ChatRoom(room_id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id) REFERENCES User(user_id) ON DELETE CASCADE
+);
+
+-- peer(판매자)가 initiator(구매자)를 차단: blocked는 peer에게 채팅 개설·메시지 불가
+CREATE TABLE UserBlock (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    blocker_id VARCHAR(50) NOT NULL,
+    blocked_id VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_block (blocker_id, blocked_id),
+    FOREIGN KEY (blocker_id) REFERENCES User(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (blocked_id) REFERENCES User(user_id) ON DELETE CASCADE
 );

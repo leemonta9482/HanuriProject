@@ -95,20 +95,6 @@ class Favorite(Base):
     board_id: Mapped[int] = mapped_column(ForeignKey("Board.board_id", ondelete="CASCADE"), nullable=False)
 
 
-class PurchaseRequest(Base):
-    __tablename__ = "PurchaseRequest"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    board_id: Mapped[int] = mapped_column(ForeignKey("Board.board_id", ondelete="CASCADE"), nullable=False)
-    buyer_id: Mapped[str] = mapped_column(String(50), ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
-    status: Mapped[str] = mapped_column(
-        ENUM("REQUESTED", "ACCEPTED", "REJECTED"),
-        nullable=False,
-        default="REQUESTED",
-    )
-    created_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
-
-
 class Report(Base):
     __tablename__ = "Report"
 
@@ -175,4 +161,13 @@ class ChatMessage(Base):
     room_id: Mapped[int] = mapped_column(ForeignKey("ChatRoom.room_id", ondelete="CASCADE"), nullable=False)
     sender_id: Mapped[str] = mapped_column(String(50), ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+
+
+class UserBlock(Base):
+    __tablename__ = "UserBlock"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    blocker_id: Mapped[str] = mapped_column(String(50), ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
+    blocked_id: Mapped[str] = mapped_column(String(50), ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())

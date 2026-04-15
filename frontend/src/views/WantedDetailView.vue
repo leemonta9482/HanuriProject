@@ -70,7 +70,13 @@ async function onOpenChat() {
     error.value = ''
     await router.push({ name: 'chat', query: { room: String(room_id) } })
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '채팅방을 열 수 없습니다.'
+    const msg = e instanceof Error ? e.message : '채팅방을 열 수 없습니다.'
+    if (msg.includes('차단')) {
+      window.alert(msg)
+      error.value = ''
+    } else {
+      error.value = msg
+    }
   }
 }
 

@@ -1,10 +1,4 @@
-import type {
-  BoardDetail,
-  BoardListResponse,
-  BoardStatus,
-  BoardUpdatePayload,
-  PurchaseRequest,
-} from './types'
+import type { BoardDetail, BoardListResponse, BoardStatus, BoardUpdatePayload } from './types'
 import { apiFetch, authHeaders, authHeadersJson, getBaseUrl, parseJsonError } from './client'
 
 export type BoardSort = 'latest' | 'price_asc' | 'price_desc'
@@ -141,36 +135,6 @@ export async function fetchMyBoards(params: {
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return (await res.json()) as BoardListResponse
-}
-
-export async function createPurchaseRequest(boardId: number): Promise<PurchaseRequest> {
-  const res = await apiFetch(`${getBaseUrl()}/api/boards/${boardId}/purchase-requests`, {
-    method: 'POST',
-    headers: authHeadersJson(),
-  })
-  if (!res.ok) throw new Error(await parseJsonError(res))
-  return (await res.json()) as PurchaseRequest
-}
-
-export async function fetchPurchaseRequests(boardId: number): Promise<PurchaseRequest[]> {
-  const res = await apiFetch(`${getBaseUrl()}/api/boards/${boardId}/purchase-requests`, {
-    headers: authHeadersJson(),
-  })
-  if (!res.ok) throw new Error(await parseJsonError(res))
-  return (await res.json()) as PurchaseRequest[]
-}
-
-export async function updatePurchaseRequest(
-  requestId: number,
-  status: 'ACCEPTED' | 'REJECTED',
-): Promise<PurchaseRequest> {
-  const res = await apiFetch(`${getBaseUrl()}/api/purchase-requests/${requestId}`, {
-    method: 'PATCH',
-    headers: authHeadersJson(),
-    body: JSON.stringify({ status }),
-  })
-  if (!res.ok) throw new Error(await parseJsonError(res))
-  return (await res.json()) as PurchaseRequest
 }
 
 export async function reportBoard(boardId: number, reason: string): Promise<void> {

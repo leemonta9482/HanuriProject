@@ -4,14 +4,17 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import type { RouteLocationRaw } from 'vue-router'
 
 import {
+  blockUser,
   closeChatRoom,
   deleteChatRoom,
+  fetchBlockedUsers,
   fetchChatMessages,
   fetchChatRooms,
   sendChatMessage,
+  unblockUser,
 } from '@/api/chat'
 import { uploadsPublicUrl } from '@/api/client'
-import type { ChatMessage, ChatRoomSummary } from '@/api/types'
+import type { BlockedUserEntry, ChatMessage, ChatRoomClosed, ChatRoomSummary } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -25,6 +28,11 @@ const input = ref('')
 const loadingRooms = ref(true)
 const loadingMessages = ref(false)
 const error = ref('')
+/** 실시간: 상대 종료 vs 내 종료 vs(새로고침 후) 공통 문구 */
+const roomClosure = ref<ChatRoomClosed | null>(null)
+const blockedUsers = ref<BlockedUserEntry[]>([])
+const blockPanelOpen = ref(false)
+const loadingBlocks = ref(false)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const msgScrollRef = ref<HTMLElement | null>(null)
@@ -90,6 +98,57 @@ async function loadRooms() {
   }
 }
 
+async function loadBlockList() {
+  loadingBlocks.value = true
+  try {
+    blockedUsers.value = await fetchBlockedUsers()
+  } catch {
+    blockedUsers.value = []
+  } finally {
+    loadingBlocks.value = false
+  }
+}
+
+async function toggleBlockPanel() {
+  blockPanelOpen.value = !blockPanelOpen.value
+  if (blockPanelOpen.value) {
+    await loadBlockList()
+  }
+}
+
+async function onBlockPeer() {
+  const room = selectedRoom.value
+  if (!room?.i_am_peer || room.initiator_blocked_by_me || room.closed_at) return
+  if (
+    !window.confirm(
+      '이 구매자를 차단하시겠습니까? 차단 후 상대는 새 대화를 걸거나 메시지를 보낼 수 없습니다.',
+    )
+  )
+    return
+  try {
+    await blockUser(room.peer_user_id)
+    error.value = ''
+    await loadRooms()
+    await loadBlockList()
+    await loadMessages()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '차단에 실패했습니다.'
+  }
+}
+
+async function onUnblockPeer(blockedUserId: string) {
+  if (!window.confirm('이 사용자의 차단을 해제할까요?')) return
+  try {
+    await unblockUser(blockedUserId)
+    error.value = ''
+    await loadBlockList()
+    await loadRooms()
+    if (selectedRoomId.value != null) await loadMessages()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '해제에 실패했습니다.'
+  }
+}
+
 function stopPoll() {
   if (pollTimer != null) {
     clearInterval(pollTimer)
@@ -101,10 +160,14 @@ async function loadMessages() {
   if (selectedRoomId.value == null) return
   loadingMessages.value = true
   try {
-    messages.value = await fetchChatMessages(selectedRoomId.value)
+    const { messages: list, room_closed } = await fetchChatMessages(selectedRoomId.value)
+    messages.value = list
+    roomClosure.value = room_closed
+    if (room_closed) stopPoll()
   } catch (e) {
     error.value = e instanceof Error ? e.message : '메시지를 불러오지 못했습니다.'
     messages.value = []
+    roomClosure.value = null
   } finally {
     loadingMessages.value = false
   }
@@ -120,8 +183,13 @@ async function pollNew() {
   const last = messages.value[messages.value.length - 1]
   if (!last) return
   try {
-    const more = await fetchChatMessages(selectedRoomId.value, last.message_id)
+    const { messages: more, room_closed } = await fetchChatMessages(selectedRoomId.value, last.message_id)
     if (more.length) messages.value = [...messages.value, ...more]
+    if (room_closed) {
+      roomClosure.value = room_closed
+      stopPoll()
+      void loadRooms()
+    }
   } catch {
     /* ignore */
   }
@@ -147,10 +215,20 @@ async function onCloseChat() {
   if (rid == null || selectedRoom.value?.closed_at) return
   if (!window.confirm('진짜 이 채팅방을 나가시겠습니까?')) return
   try {
-    await closeChatRoom(rid)
+    const result = await closeChatRoom(rid)
     error.value = ''
     stopPoll()
+    if (result.deleted) {
+      selectedRoomId.value = null
+      messages.value = []
+      roomClosure.value = null
+      void router.replace({ name: 'chat', query: {} })
+      await loadRooms()
+      return
+    }
     await loadRooms()
+    await loadMessages()
+    roomClosure.value = { notice_text: '내가 대화를 종료했습니다.' }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '대화를 종료할 수 없습니다.'
   }
@@ -171,6 +249,7 @@ async function onDeleteRoom() {
     stopPoll()
     selectedRoomId.value = null
     messages.value = []
+    roomClosure.value = null
     void router.replace({ name: 'chat', query: {} })
     await loadRooms()
   } catch (e) {
@@ -181,6 +260,8 @@ async function onDeleteRoom() {
 async function onSend() {
   const t = input.value.trim()
   if (!t || selectedRoomId.value == null || selectedRoom.value?.closed_at) return
+  if (selectedRoom.value?.i_am_blocked_by_peer) return
+  if (selectedRoom.value?.i_am_peer && selectedRoom.value?.initiator_blocked_by_me) return
   try {
     const m = await sendChatMessage(selectedRoomId.value, t)
     input.value = ''
@@ -194,7 +275,22 @@ async function onSend() {
 function onHanuriLive(ev: Event) {
   const ce = ev as CustomEvent<Record<string, unknown>>
   const d = ce.detail
-  if (!d || d.type !== 'chat') return
+  if (!d) return
+  if (d.type === 'chat_room_closed') {
+    const rid = d.room_id
+    if (typeof rid !== 'number') return
+    const closedAt = typeof d.closed_at === 'string' ? d.closed_at : null
+    rooms.value = rooms.value.map((r) =>
+      r.room_id === rid ? { ...r, closed_at: closedAt ?? r.closed_at } : r,
+    )
+    if (selectedRoomId.value === rid) {
+      roomClosure.value = { notice_text: '상대방이 대화를 종료했습니다.' }
+      stopPoll()
+    }
+    void loadRooms()
+    return
+  }
+  if (d.type !== 'chat') return
   const rid = d.room_id
   if (typeof rid !== 'number' || rid !== selectedRoomId.value) return
   const raw = d.message
@@ -226,6 +322,7 @@ watch(
     if (Number.isNaN(rid) || rid <= 0) {
       selectedRoomId.value = null
       messages.value = []
+      roomClosure.value = null
       stopPoll()
       return
     }
@@ -244,7 +341,7 @@ onUnmounted(() => {
   stopPoll()
 })
 
-watch(messages, () => scrollChatToBottom(), { deep: true })
+watch([messages, roomClosure], () => scrollChatToBottom(), { deep: true })
 
 watch(loadingMessages, (loading) => {
   if (!loading) scrollChatToBottom()
@@ -261,6 +358,24 @@ watch(loadingMessages, (loading) => {
 
     <div class="split">
       <aside class="sidebar" aria-label="대화 목록">
+        <div class="block-panel">
+          <button type="button" class="block-panel-toggle" @click="toggleBlockPanel">
+            {{ blockPanelOpen ? '▼' : '▶' }} 차단 목록
+            <span v-if="blockedUsers.length" class="block-count">({{ blockedUsers.length }})</span>
+          </button>
+          <div v-show="blockPanelOpen" class="block-panel-body">
+            <p v-if="loadingBlocks" class="side-hint">불러오는 중…</p>
+            <ul v-else-if="blockedUsers.length" class="block-list">
+              <li v-for="b in blockedUsers" :key="b.blocked_user_id" class="block-row">
+                <span class="block-name">{{ b.blocked_name }}</span>
+                <button type="button" class="btn-unblock" @click="onUnblockPeer(b.blocked_user_id)">
+                  해제
+                </button>
+              </li>
+            </ul>
+            <p v-else class="side-hint block-empty">차단한 구매자가 없습니다.</p>
+          </div>
+        </div>
         <p v-if="loadingRooms" class="side-hint">불러오는 중…</p>
         <ul v-else-if="rooms.length" class="room-list">
           <li v-for="r in rooms" :key="r.room_id">
@@ -300,22 +415,36 @@ watch(loadingMessages, (loading) => {
                 <strong>{{ selectedRoom.peer_name }}</strong>
                 <span class="kind-badge">{{ selectedRoom.listing_kind === 'wanted' ? '구매 희망' : '판매' }}</span>
               </div>
-              <button
-                v-if="!selectedRoom.closed_at"
-                type="button"
-                class="btn-end-chat"
-                @click="onCloseChat"
-              >
-                대화 끊기
-              </button>
-              <button
-                v-else
-                type="button"
-                class="btn-delete-room"
-                @click="onDeleteRoom"
-              >
-                대화방 삭제
-              </button>
+              <div class="peer-actions">
+                <button
+                  v-if="
+                    selectedRoom.i_am_peer &&
+                    !selectedRoom.initiator_blocked_by_me &&
+                    !selectedRoom.closed_at
+                  "
+                  type="button"
+                  class="btn-block-peer"
+                  @click="onBlockPeer"
+                >
+                  구매자 차단
+                </button>
+                <button
+                  v-if="!selectedRoom.closed_at"
+                  type="button"
+                  class="btn-end-chat"
+                  @click="onCloseChat"
+                >
+                  대화 끊기
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="btn-delete-room"
+                  @click="onDeleteRoom"
+                >
+                  대화방 삭제
+                </button>
+              </div>
             </div>
             <div class="listing-bar">
               <div v-if="thumbUrl(selectedRoom.thumbnail_path)" class="lb-thumb">
@@ -333,6 +462,16 @@ watch(loadingMessages, (loading) => {
           <p v-if="selectedRoom.closed_at" class="closed-banner" role="status">
             종료된 대화입니다. 더 이상 메시지를 보낼 수 없습니다.
           </p>
+          <p v-else-if="selectedRoom.i_am_blocked_by_peer" class="blocked-banner" role="status">
+            판매자가 대화를 제한했습니다. 메시지를 보낼 수 없습니다.
+          </p>
+          <p
+            v-else-if="selectedRoom.i_am_peer && selectedRoom.initiator_blocked_by_me"
+            class="blocked-banner"
+            role="status"
+          >
+            이 구매자를 차단한 대화입니다. 메시지를 보낼 수 없습니다.
+          </p>
 
           <div ref="msgScrollRef" class="msg-scroll">
             <p v-if="loadingMessages" class="msg-hint">불러오는 중…</p>
@@ -348,10 +487,21 @@ watch(loadingMessages, (loading) => {
                   <time class="msg-time">{{ msgTime(m.created_at) }}</time>
                 </div>
               </li>
+              <li v-if="roomClosure" class="msg-row msg-system" role="status">
+                <p class="msg-system-text">{{ roomClosure.notice_text }}</p>
+              </li>
             </ul>
           </div>
 
-          <form v-if="!selectedRoom.closed_at" class="composer" @submit.prevent="onSend">
+          <form
+            v-if="
+              !selectedRoom.closed_at &&
+              !selectedRoom.i_am_blocked_by_peer &&
+              !(selectedRoom.i_am_peer && selectedRoom.initiator_blocked_by_me)
+            "
+            class="composer"
+            @submit.prevent="onSend"
+          >
             <input
               v-model="input"
               type="text"
@@ -626,6 +776,126 @@ watch(loadingMessages, (loading) => {
   border-bottom: 1px solid var(--color-border);
 }
 
+.blocked-banner {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.65rem 1rem;
+  font-size: 0.88rem;
+  background: hsla(200, 40%, 45%, 0.1);
+  color: hsl(200, 35%, 28%);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.peer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.btn-block-peer {
+  flex-shrink: 0;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  border: 1px solid rgba(92, 176, 185, 0.55);
+  background: rgba(92, 176, 185, 0.1);
+  color: hsl(186, 38%, 26%);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-block-peer:hover {
+  background: rgba(92, 176, 185, 0.18);
+}
+
+.block-panel {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-background-mute);
+}
+
+.block-panel-toggle {
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.block-panel-toggle:hover {
+  background: rgba(92, 176, 185, 0.08);
+}
+
+.block-count {
+  font-weight: 500;
+  opacity: 0.8;
+  font-size: 0.82rem;
+}
+
+.block-panel-body {
+  padding: 0 0.65rem 0.65rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.block-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.block-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  font-size: 0.82rem;
+}
+
+.block-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-unblock {
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+  color: hsl(186, 38%, 30%);
+  font-weight: 600;
+}
+
+.btn-unblock:hover {
+  background: rgba(92, 176, 185, 0.12);
+}
+
+.block-empty {
+  margin: 0;
+  padding: 0.25rem 0;
+}
+
 .ended-badge {
   margin-left: 0.35rem;
   font-size: 0.68rem;
@@ -807,6 +1077,21 @@ watch(loadingMessages, (loading) => {
 
 .msg-row.me {
   justify-content: flex-end;
+}
+
+.msg-row.msg-system {
+  justify-content: center;
+  margin-top: 0.15rem;
+}
+
+.msg-system-text {
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--color-text);
+  opacity: 0.85;
+  text-align: center;
 }
 
 .bubble {

@@ -203,7 +203,6 @@ export interface BoardDetail {
   updated_at?: string | null
   is_favorited: boolean
   is_owner: boolean
-  my_purchase_request_status: string | null
   favorite_count: number
 }
 
@@ -213,15 +212,6 @@ export interface BoardUpdatePayload {
   description?: string | null
   location?: string | null
   trade_type?: TradeType
-}
-
-export interface PurchaseRequest {
-  id: number
-  board_id: number
-  buyer_id: string
-  buyer_name: string
-  status: string
-  created_at?: string | null
 }
 
 export interface WantedPost {
@@ -297,6 +287,19 @@ export interface ChatRoomSummary {
   last_message_at?: string | null
   /** 설정 시 대화 종료(메시지 전송 불가) */
   closed_at?: string | null
+  /** 내가 판매자(peer)인지 */
+  i_am_peer?: boolean
+  /** 판매자일 때 구매자를 내가 차단했는지 */
+  initiator_blocked_by_me?: boolean
+  /** 구매자일 때 판매자에게 차단당했는지 */
+  i_am_blocked_by_peer?: boolean
+}
+
+/** GET /api/chat/blocks */
+export interface BlockedUserEntry {
+  blocked_user_id: string
+  blocked_name: string
+  created_at?: string | null
 }
 
 export interface ChatMessage {
@@ -304,4 +307,9 @@ export interface ChatMessage {
   sender_id: string
   body: string
   created_at?: string | null
+}
+
+/** 종료 안내(마지막 줄). 새로고침 후에는 API가 누가 끊었는지 구분하지 않음 */
+export interface ChatRoomClosed {
+  notice_text: string
 }

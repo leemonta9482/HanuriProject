@@ -72,7 +72,6 @@ FastAPI 기반의 백엔드와 Vue.js 프론트엔드를 사용합니다.
 - **Board**: 판매글(가격, 설명, 거래 장소, 거래 방식, 판매 상태)
 - **WantedPost**: 구매 희망글
 - **Favorite**: 찜
-- **PurchaseRequest** 등: 구매 요청·거래 흐름 관련 테이블
 
 ---
 
