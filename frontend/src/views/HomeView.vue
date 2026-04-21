@@ -51,7 +51,7 @@ function thumbUrl(path: string | null): string | null {
   return uploadsPublicUrl(path)
 }
 
-function formatPrice(n: number | null): string {ㄴ
+function formatPrice(n: number | null): string {
   if (n == null || Number.isNaN(n)) return '가격 미정'
   return new Intl.NumberFormat('ko-KR').format(n) + '원'
 }
