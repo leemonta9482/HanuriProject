@@ -17,6 +17,7 @@ function loadStoredUser(): LoginUserInfo | null {
       user_id: u.user_id,
       name: typeof u.name === 'string' ? u.name.trim() : '',
       email: u.email,
+      school_name: typeof u.school_name === 'string' ? u.school_name.trim() : '',
       is_admin: Boolean(u.is_admin),
       profile_image_path:
         typeof u.profile_image_path === 'string' && u.profile_image_path.trim()

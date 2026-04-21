@@ -189,6 +189,7 @@ def login(body: UserLogin, db: Session = Depends(get_db)) -> LoginResponse:
             user_id=user.user_id,
             name=user.name,
             email=user.email,
+            school_name=user.school_name,
             is_admin=user.is_admin,
             profile_image_path=user.profile_image_path,
         ),
@@ -201,6 +202,7 @@ def get_me(user: User = Depends(get_current_user)) -> LoginUserInfo:
         user_id=user.user_id,
         name=user.name,
         email=user.email,
+        school_name=user.school_name,
         is_admin=user.is_admin,
         profile_image_path=user.profile_image_path,
     )

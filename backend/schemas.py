@@ -28,6 +28,7 @@ class LoginUserInfo(BaseModel):
     user_id: str
     name: str
     email: str
+    school_name: str
     is_admin: bool = False
     profile_image_path: str | None = None
 

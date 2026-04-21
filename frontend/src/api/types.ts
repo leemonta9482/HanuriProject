@@ -31,6 +31,7 @@ export interface LoginUserInfo {
   user_id: string
   name: string
   email: string
+  school_name: string
   is_admin: boolean
   profile_image_path?: string | null
 }
