@@ -29,6 +29,14 @@ const hasMore = computed(() => totalPages.value > 0 && page.value <= totalPages.
 /** 같은 카드 연속 찜 요청 방지 */
 const favBusyBoardId = ref<number | null>(null)
 
+/** 피드 제목 접미사: 관리자는 (전체), 그 외 로그인 사용자는 소속 학교명 */
+const feedSchoolTitleSuffix = computed(() => {
+  if (!auth.isLoggedIn) return ''
+  if (auth.isAdmin) return ' (전체)'
+  const s = auth.user?.school_name?.trim()
+  return s ? ` (${s})` : ''
+})
+
 const statusLabel: Record<string, string> = {
   ON_SALE: '판매중',
   RESERVED: '예약중',
@@ -43,7 +51,7 @@ function thumbUrl(path: string | null): string | null {
   return uploadsPublicUrl(path)
 }
 
-function formatPrice(n: number | null): string {
+function formatPrice(n: number | null): string {ㄴ
   if (n == null || Number.isNaN(n)) return '가격 미정'
   return new Intl.NumberFormat('ko-KR').format(n) + '원'
 }
@@ -215,7 +223,7 @@ watch(sentinel, (el) => {
   <div class="market">
     <header class="toolbar">
       <div class="toolbar-lead" aria-hidden="true" />
-      <h1 class="title">중고 거래</h1>
+      <h1 class="title">중고 거래{{ feedSchoolTitleSuffix }}</h1>
       <div class="toolbar-trail">
         <div v-if="auth.isLoggedIn" class="actions">
           <label class="sort">
