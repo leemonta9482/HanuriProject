@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, TIMESTAMP, func
+from sqlalchemy import Boolean, BigInteger, Float, ForeignKey, Integer, String, Text, TIMESTAMP, func
 from sqlalchemy.dialects.mysql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -188,3 +188,22 @@ class UserBlock(Base):
     blocker_id: Mapped[str] = mapped_column(String(50), ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
     blocked_id: Mapped[str] = mapped_column(String(50), ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+
+
+class UserNotification(Base):
+    """수신자별 인앱 알림(미읽음 채팅·찜). 로그아웃 중에도 서버에 적재."""
+
+    __tablename__ = "UserNotification"
+
+    notification_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(50), ForeignKey("User.user_id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(
+        ENUM("CHAT_MESSAGE", "BOARD_FAVORITED"),
+        nullable=False,
+    )
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("ChatRoom.room_id", ondelete="CASCADE"), nullable=True)
+    board_id: Mapped[int | None] = mapped_column(ForeignKey("Board.board_id", ondelete="CASCADE"), nullable=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+    read_at: Mapped[object | None] = mapped_column(TIMESTAMP, nullable=True)

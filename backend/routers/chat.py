@@ -21,6 +21,7 @@ from schemas import (
     SendChatMessageRequest,
     UserBlockEntryOut,
 )
+from user_notifications import upsert_chat_notification
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -485,14 +486,21 @@ def send_message(
     msg = ChatMessage(room_id=room_id, sender_id=user.user_id, body=body.body.strip())
     db.add(msg)
     room.last_message_at = datetime.now(UTC)
-    db.commit()
-    db.refresh(msg)
     peer_id = _peer_user_id(room, user.user_id)
     sender = db.get(User, user.user_id)
     sender_name = ((sender.name or "").strip() or user.user_id) if sender else user.user_id
     preview = msg.body
     if len(preview) > 120:
         preview = preview[:119] + "…"
+    upsert_chat_notification(
+        db,
+        recipient_id=peer_id,
+        room_id=room_id,
+        title="새 채팅",
+        body=f"{sender_name}: {preview}",
+    )
+    db.commit()
+    db.refresh(msg)
     out = ChatMessageOut(
         message_id=msg.message_id,
         sender_id=msg.sender_id,

@@ -19,6 +19,7 @@ from schemas import (
 )
 from realtime_events import publish_event
 from upload_storage import MAX_BOARD_IMAGES, delete_uploaded_file, save_board_image
+from user_notifications import insert_favorite_notification
 
 router = APIRouter(prefix="/api", tags=["boards"])
 
@@ -433,6 +434,14 @@ def add_favorite(
         if board.user_id != user.user_id:
             favoriter = db.get(User, user.user_id)
             display = ((favoriter.name or "").strip() or user.user_id) if favoriter else user.user_id
+            insert_favorite_notification(
+                db,
+                seller_id=board.user_id,
+                board_id=board_id,
+                title="찜 알림",
+                body=f"{display}님이 내 판매글을 찜했습니다.",
+            )
+            db.commit()
             publish_event(
                 board.user_id,
                 {

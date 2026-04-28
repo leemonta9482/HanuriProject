@@ -22,6 +22,8 @@ onMounted(() => {
 function doLogoutOnly() {
   auth.logout()
   error.value = ''
+  window.dispatchEvent(new CustomEvent('hanuri:logout-toast'))
+  void router.replace({ name: 'home' })
 }
 
 async function onSubmit() {
