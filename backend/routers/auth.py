@@ -4,7 +4,7 @@ import tempfile
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -19,22 +19,34 @@ from ocr import (
     ocr_texts_contain_student_id,
     run_ocr_on_image_path,
 )
+from email_utils import build_registration_email_code_message, send_email
 from schemas import (
     LoginResponse,
     LoginUserInfo,
     PasswordChangeBody,
     PublicSchoolItem,
     PublicSchoolListResponse,
+    RegistrationEmailCodeSendBody,
+    RegistrationEmailCodeSendResponse,
+    RegistrationEmailCodeVerifyBody,
+    RegistrationEmailCodeVerifyResponse,
     RegisterResponse,
     StudentIdVerifyResponse,
+    UserIdAvailabilityResponse,
     UserLogin,
     UserProfileOut,
 )
 from security import (
     create_access_token,
+    create_email_code_challenge_token,
+    create_email_registration_verified_token,
     create_student_id_verify_token,
+    decode_email_registration_verified_token,
     decode_student_id_verify_token,
     hash_password,
+    normalize_registration_email,
+    registration_email_verification_code,
+    verify_email_code_challenge,
     verify_password,
 )
 from upload_storage import delete_uploaded_file, save_profile_image, save_student_id_card
@@ -53,6 +65,50 @@ def list_public_schools(db: Session = Depends(get_db)) -> PublicSchoolListRespon
         .all()
     )
     return PublicSchoolListResponse(items=[PublicSchoolItem.model_validate(s) for s in rows])
+
+
+@router.get("/user-id-available", response_model=UserIdAvailabilityResponse)
+def check_user_id_available(
+    user_id: str = Query(..., min_length=1, max_length=50),
+    db: Session = Depends(get_db),
+) -> UserIdAvailabilityResponse:
+    """회원가입 전 아이디 사용 가능 여부(이미 존재하면 available=False)."""
+    uid = user_id.strip()
+    if not uid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="아이디를 입력해 주세요.")
+    taken = db.get(User, uid) is not None
+    return UserIdAvailabilityResponse(available=not taken)
+
+
+@router.post("/registration-email/send", response_model=RegistrationEmailCodeSendResponse)
+def send_registration_email_code(
+    body: RegistrationEmailCodeSendBody,
+    db: Session = Depends(get_db),
+) -> RegistrationEmailCodeSendResponse:
+    """회원가입 전 이메일로 4자리 인증번호를 발송하고, 다음 단계(번호 확인)용 챌린지 JWT를 반환합니다."""
+    normalized = normalize_registration_email(str(body.email))
+    existing = db.scalars(select(User).where(User.email == normalized)).first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 가입된 이메일입니다.",
+        )
+    code = registration_email_verification_code()
+    challenge_token = create_email_code_challenge_token(normalized, code)
+    subject, text_body = build_registration_email_code_message(code)
+    send_email(normalized, subject, text_body)
+    return RegistrationEmailCodeSendResponse(challenge_token=challenge_token)
+
+
+@router.post("/registration-email/verify", response_model=RegistrationEmailCodeVerifyResponse)
+def verify_registration_email_code(body: RegistrationEmailCodeVerifyBody) -> RegistrationEmailCodeVerifyResponse:
+    """챌린지 JWT와 사용자가 입력한 인증번호가 일치하면 회원가입 제출용 이메일 인증 JWT를 발급합니다."""
+    try:
+        verified_email = verify_email_code_challenge(body.challenge_token.strip(), body.code)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    proof = create_email_registration_verified_token(verified_email)
+    return RegistrationEmailCodeVerifyResponse(email_verification_token=proof)
 
 
 def _find_existing_user_by_school_and_student_id(
@@ -153,6 +209,7 @@ async def register(
     student_id: str = Form(..., min_length=1, max_length=20),
     interest_major: str | None = Form(None),
     student_id_verification_token: str = Form(..., description="POST /verify-student-id 로 발급받은 토큰"),
+    email_verification_token: str = Form(..., description="POST /registration-email/verify 로 발급받은 토큰"),
     student_id_card: UploadFile = File(..., description="학생증 이미지"),
     db: Session = Depends(get_db),
 ) -> RegisterResponse:
@@ -178,6 +235,17 @@ async def register(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="학번이 학생증 인증 당시와 일치하지 않습니다. 학생증 인증을 다시 진행해 주세요.",
+        )
+
+    try:
+        verified_email = decode_email_registration_verified_token(email_verification_token.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    email_norm = email.strip().lower()
+    if verified_email != email_norm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이메일 인증이 입력하신 이메일과 일치하지 않습니다. 이메일을 바꾼 경우 인증을 다시 진행해 주세요.",
         )
 
     school_name_stripped = school_name.strip()

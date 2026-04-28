@@ -14,6 +14,8 @@ export type RegisterWithStudentCardPayload = RegisterPayload & {
   student_id_card: File
   /** POST /api/auth/verify-student-id 로 발급 (이름·학교·이미지와 일치) */
   student_id_verification_token: string
+  /** POST /api/auth/registration-email/verify 로 발급 */
+  email_verification_token: string
 }
 
 export interface RegisterResponse {
@@ -153,6 +155,11 @@ export interface PublicSchoolItem {
 
 export interface PublicSchoolListResponse {
   items: PublicSchoolItem[]
+}
+
+/** GET /api/auth/user-id-available */
+export interface UserIdAvailabilityResponse {
+  available: boolean
 }
 
 export interface AdminBoardListResponse {

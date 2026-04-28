@@ -5,14 +5,47 @@ import type {
   PublicSchoolListResponse,
   RegisterResponse,
   RegisterWithStudentCardPayload,
+  UserIdAvailabilityResponse,
   UserProfile,
 } from './types'
 import { apiFetch, authHeaders, authHeadersJson, createFetchAbortSignal, getBaseUrl, parseJsonError } from './client'
+
+export async function sendRegistrationEmailCode(
+  email: string,
+): Promise<{ challenge_token: string }> {
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/registration-email/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim() }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as { challenge_token: string }
+}
+
+export async function verifyRegistrationEmailCode(
+  challengeToken: string,
+  code: string,
+): Promise<{ email_verification_token: string }> {
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/registration-email/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge_token: challengeToken.trim(), code }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as { email_verification_token: string }
+}
 
 export async function fetchPublicSchools(): Promise<PublicSchoolListResponse> {
   const res = await apiFetch(`${getBaseUrl()}/api/auth/schools`)
   if (!res.ok) throw new Error(await parseJsonError(res))
   return (await res.json()) as PublicSchoolListResponse
+}
+
+export async function checkUserIdAvailable(userId: string): Promise<UserIdAvailabilityResponse> {
+  const q = new URLSearchParams({ user_id: userId.trim() })
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/user-id-available?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as UserIdAvailabilityResponse
 }
 
 export async function verifyStudentId(payload: {
@@ -46,6 +79,7 @@ export async function registerUser(payload: RegisterWithStudentCardPayload): Pro
   form.append('student_id', payload.student_id.trim())
   if (payload.interest_major?.trim()) form.append('interest_major', payload.interest_major.trim())
   form.append('student_id_verification_token', payload.student_id_verification_token)
+  form.append('email_verification_token', payload.email_verification_token)
   form.append('student_id_card', payload.student_id_card)
 
   const res = await apiFetch(`${getBaseUrl()}/api/auth/register`, {

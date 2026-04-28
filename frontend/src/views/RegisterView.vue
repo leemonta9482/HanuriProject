@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { fetchPublicSchools, registerUser, verifyStudentId } from '@/api/auth'
+import { fetchPublicSchools, checkUserIdAvailable, registerUser, verifyStudentId, sendRegistrationEmailCode, verifyRegistrationEmailCode } from '@/api/auth'
 import type { PublicSchoolItem } from '@/api/types'
 
 const router = useRouter()
@@ -29,6 +29,122 @@ const schools = ref<PublicSchoolItem[]>([])
 const schoolsLoading = ref(false)
 const schoolsError = ref('')
 
+const userIdVerifiedFor = ref<string | null>(null)
+const userIdCheckError = ref('')
+const userIdCheckLoading = ref(false)
+
+const emailCode = ref('')
+const emailChallengeToken = ref<string | null>(null)
+const emailCodeRequestFor = ref<string | null>(null)
+const emailVerificationToken = ref<string | null>(null)
+const emailVerifiedFor = ref<string | null>(null)
+const emailSendError = ref('')
+const emailVerifyError = ref('')
+const emailSendHint = ref('')
+const emailSendLoading = ref(false)
+const emailVerifyLoading = ref(false)
+
+const userIdLocked = computed(
+  () => !!userIdVerifiedFor.value && userId.value.trim() === userIdVerifiedFor.value,
+)
+
+const emailLocked = computed(
+  () =>
+    !!emailVerifiedFor.value && email.value.trim().toLowerCase() === emailVerifiedFor.value,
+)
+
+function clearEmailVerification() {
+  emailChallengeToken.value = null
+  emailCodeRequestFor.value = null
+  emailVerificationToken.value = null
+  emailVerifiedFor.value = null
+  emailCode.value = ''
+  emailSendError.value = ''
+  emailVerifyError.value = ''
+  emailSendHint.value = ''
+}
+
+function onEmailInput() {
+  const t = email.value.trim().toLowerCase()
+  if (emailVerifiedFor.value !== null && t !== emailVerifiedFor.value) {
+    clearEmailVerification()
+    return
+  }
+  if (emailCodeRequestFor.value !== null && t !== emailCodeRequestFor.value) {
+    emailChallengeToken.value = null
+    emailCodeRequestFor.value = null
+    emailCode.value = ''
+    emailSendError.value = ''
+    emailVerifyError.value = ''
+    emailSendHint.value = ''
+    emailVerificationToken.value = null
+    emailVerifiedFor.value = null
+  }
+}
+
+function onEmailCodeInput() {
+  const d = emailCode.value.replace(/\D/g, '').slice(0, 4)
+  if (d !== emailCode.value) emailCode.value = d
+}
+
+function unlockEmail() {
+  clearEmailVerification()
+}
+
+async function onSendEmailCode() {
+  emailSendError.value = ''
+  emailVerifyError.value = ''
+  emailSendHint.value = ''
+  const addr = email.value.trim()
+  if (!addr) {
+    emailSendError.value = '이메일을 입력해 주세요.'
+    return
+  }
+  emailSendLoading.value = true
+  try {
+    const res = await sendRegistrationEmailCode(addr)
+    emailChallengeToken.value = res.challenge_token
+    emailCodeRequestFor.value = addr.toLowerCase()
+    emailVerificationToken.value = null
+    emailVerifiedFor.value = null
+    emailCode.value = ''
+    emailSendHint.value = '인증번호가 메일로 발송되었습니다. 스팸함도 확인해 주세요.'
+  } catch (e) {
+    emailSendError.value = e instanceof Error ? e.message : '인증번호 발송에 실패했습니다.'
+  } finally {
+    emailSendLoading.value = false
+  }
+}
+
+async function onVerifyEmailCode() {
+  emailVerifyError.value = ''
+  if (!emailChallengeToken.value) {
+    emailVerifyError.value = '먼저 인증번호 받기를 눌러 주세요.'
+    return
+  }
+  const digits = emailCode.value.replace(/\D/g, '')
+  if (digits.length !== 4) {
+    emailVerifyError.value = '인증번호 4자리를 입력해 주세요.'
+    return
+  }
+  emailVerifyLoading.value = true
+  try {
+    const res = await verifyRegistrationEmailCode(emailChallengeToken.value, digits)
+    emailVerificationToken.value = res.email_verification_token
+    emailVerifiedFor.value = email.value.trim().toLowerCase()
+    emailSendHint.value = ''
+  } catch (e) {
+    emailVerifyError.value = e instanceof Error ? e.message : '인증에 실패했습니다.'
+  } finally {
+    emailVerifyLoading.value = false
+  }
+}
+
+function unlockUserId() {
+  userIdVerifiedFor.value = null
+  userIdCheckError.value = ''
+}
+
 async function loadSchools() {
   schoolsError.value = ''
   schoolsLoading.value = true
@@ -52,6 +168,40 @@ function onStudentCardChange(ev: Event) {
   verificationToken.value = null
   verifyOk.value = false
   verifyError.value = ''
+}
+
+function onUserIdInput() {
+  const t = userId.value.trim()
+  if (userIdVerifiedFor.value !== null && t !== userIdVerifiedFor.value) {
+    userIdVerifiedFor.value = null
+  }
+  userIdCheckError.value = ''
+}
+
+async function onCheckUserId() {
+  userIdCheckError.value = ''
+  const id = userId.value.trim()
+  if (!id) {
+    userIdCheckError.value = '아이디를 입력해 주세요.'
+    userIdVerifiedFor.value = null
+    return
+  }
+  userIdCheckLoading.value = true
+  try {
+    const res = await checkUserIdAvailable(id)
+    if (res.available) {
+      userIdVerifiedFor.value = id
+      userIdCheckError.value = ''
+    } else {
+      userIdVerifiedFor.value = null
+      userIdCheckError.value = '이미 사용 중인 아이디입니다.'
+    }
+  } catch (e) {
+    userIdVerifiedFor.value = null
+    userIdCheckError.value = e instanceof Error ? e.message : '중복 확인에 실패했습니다.'
+  } finally {
+    userIdCheckLoading.value = false
+  }
 }
 
 function clearVerificationIfIdentityChanged() {
@@ -118,6 +268,19 @@ async function onSubmit() {
     error.value = '학생증 인증하기를 눌러 이름·학교명·학번이 카드와 일치하는지 확인해 주세요.'
     return
   }
+  const uid = userId.value.trim()
+  if (!userIdVerifiedFor.value || uid !== userIdVerifiedFor.value) {
+    error.value = '아이디 중복 확인을 완료해 주세요.'
+    return
+  }
+  if (
+    !emailVerificationToken.value ||
+    !emailVerifiedFor.value ||
+    email.value.trim().toLowerCase() !== emailVerifiedFor.value
+  ) {
+    error.value = '이메일 인증을 완료해 주세요.'
+    return
+  }
   loading.value = true
   try {
     await registerUser({
@@ -131,6 +294,7 @@ async function onSubmit() {
       interest_major: interestMajor.value.trim() || null,
       student_id_card: studentIdCard.value,
       student_id_verification_token: verificationToken.value,
+      email_verification_token: emailVerificationToken.value,
     })
     await router.push({ name: 'login', query: { pending: '1' } })
   } catch (e) {
@@ -146,8 +310,8 @@ async function onSubmit() {
     <div class="card">
       <h1 class="title">회원가입</h1>
       <p class="lead">
-        가입 신청 후 관리자 승인이 완료되어야 로그인할 수 있습니다. 학생증 사진으로 이름·학교명·학번을 확인한 뒤 가입할 수
-        있으며, 동일 학교의 같은 학번으로는 중복 가입이 불가합니다.
+        가입 신청 후 관리자 승인이 완료되어야<br>
+        로그인할 수 있습니다.
       </p>
       <form class="form" @submit.prevent="onSubmit">
         <label class="field">
@@ -223,16 +387,35 @@ async function onSubmit() {
 
         <label class="field">
           <span class="label">아이디 <span class="req">*</span></span>
-          <input
-            v-model="userId"
-            type="text"
-            name="user_id"
-            autocomplete="username"
-            required
-            maxlength="50"
-            placeholder="로그인에 사용할 아이디"
-          />
+          <div class="user-id-row">
+            <input
+              v-model="userId"
+              type="text"
+              name="user_id"
+              autocomplete="username"
+              required
+              maxlength="50"
+              placeholder="로그인에 사용할 아이디"
+              class="user-id-input"
+              :readonly="userIdLocked"
+              @input="onUserIdInput"
+            />
+            <button
+              type="button"
+              class="btn-id-check"
+              :disabled="userIdCheckLoading || loading || userIdLocked"
+              @click="onCheckUserId"
+            >
+              {{ userIdCheckLoading ? '확인 중…' : '중복 확인' }}
+            </button>
+          </div>
+          <p v-if="userIdLocked" class="hint success user-id-success" role="status">
+            사용 가능한 아이디입니다.
+            <button type="button" class="btn-id-change" @click="unlockUserId">다른 아이디로 변경</button>
+          </p>
+          <p v-if="userIdCheckError" class="hint error" role="alert">{{ userIdCheckError }}</p>
         </label>
+
         <label class="field">
           <span class="label">비밀번호 <span class="req">*</span></span>
           <input
@@ -270,7 +453,56 @@ async function onSubmit() {
         </label>
         <label class="field">
           <span class="label">이메일 <span class="req">*</span></span>
-          <input v-model="email" type="email" name="email" required placeholder="email@example.com" />
+          <input
+            v-model="email"
+            type="email"
+            name="email"
+            required
+            placeholder="email@example.com"
+            autocomplete="email"
+            class="email-text-input"
+            :readonly="emailLocked"
+            @input="onEmailInput"
+          />
+          <div class="email-send-row">
+            <button
+              type="button"
+              class="btn-email-send"
+              :disabled="emailSendLoading || loading || emailLocked"
+              @click="onSendEmailCode"
+            >
+              {{ emailSendLoading ? '발송 중…' : '인증번호 받기' }}
+            </button>
+          </div>
+          <p v-if="emailSendHint" class="hint email-hint-ok">{{ emailSendHint }}</p>
+          <p v-if="emailSendError" class="hint error" role="alert">{{ emailSendError }}</p>
+          <div class="email-code-row">
+            <input
+              v-model="emailCode"
+              type="text"
+              name="email_code"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="one-time-code"
+              placeholder="인증번호 4자리"
+              class="email-code-input"
+              :disabled="!emailChallengeToken || emailLocked"
+              @input="onEmailCodeInput"
+            />
+            <button
+              type="button"
+              class="btn-email-verify"
+              :disabled="emailVerifyLoading || loading || emailLocked || !emailChallengeToken"
+              @click="onVerifyEmailCode"
+            >
+              {{ emailVerifyLoading ? '확인 중…' : '인증 확인' }}
+            </button>
+          </div>
+          <p v-if="emailLocked" class="hint success user-id-success" role="status">
+            이메일 인증이 완료되었습니다.
+            <button type="button" class="btn-id-change" @click="unlockEmail">이메일 변경</button>
+          </p>
+          <p v-if="emailVerifyError" class="hint error" role="alert">{{ emailVerifyError }}</p>
         </label>
         <label class="field">
           <span class="label">관심 전공</span>
@@ -283,7 +515,19 @@ async function onSubmit() {
           />
         </label>
         <p v-if="error" class="hint error" role="alert">{{ error }}</p>
-        <button class="submit" type="submit" :disabled="loading || !verificationToken">
+        <button
+          class="submit"
+          type="submit"
+          :disabled="
+            loading ||
+            !verificationToken ||
+            !userIdVerifiedFor ||
+            userId.trim() !== userIdVerifiedFor ||
+            !emailVerificationToken ||
+            !emailVerifiedFor ||
+            email.trim().toLowerCase() !== emailVerifiedFor
+          "
+        >
           {{ loading ? '처리 중…' : '가입 신청하기' }}
         </button>
       </form>
@@ -368,6 +612,77 @@ async function onSubmit() {
   border-color: rgba(92, 176, 185, 0.6);
 }
 
+.user-id-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.user-id-row .user-id-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-id-input:read-only {
+  background: rgba(0, 0, 0, 0.04);
+  cursor: default;
+  color: var(--color-text);
+}
+
+.field .email-text-input:read-only {
+  background: rgba(0, 0, 0, 0.04);
+  cursor: default;
+  color: var(--color-text);
+}
+
+.user-id-success {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.btn-id-change {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: hsl(186, 38%, 32%);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.btn-id-change:hover {
+  color: hsl(186, 45%, 24%);
+}
+
+.btn-id-check {
+  flex: 0 0 auto;
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-accent);
+  background: rgba(92, 176, 185, 0.1);
+  color: hsl(186, 38%, 28%);
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-id-check:hover:not(:disabled) {
+  background: rgba(92, 176, 185, 0.18);
+}
+
+.btn-id-check:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .field-select {
   padding: 0.65rem 0.75rem;
   border-radius: 8px;
@@ -415,6 +730,75 @@ async function onSubmit() {
 
 .verify-row {
   margin: -0.25rem 0 0.35rem;
+}
+
+.email-send-row {
+  margin-top: 0.45rem;
+}
+
+.btn-email-send {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-accent);
+  background: transparent;
+  color: hsl(186, 38%, 28%);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-email-send:hover:not(:disabled) {
+  background: rgba(92, 176, 185, 0.12);
+}
+
+.btn-email-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.email-code-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  margin-top: 0.55rem;
+}
+
+.email-code-input {
+  flex: 1;
+  min-width: 0;
+  letter-spacing: 0.15em;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-email-verify {
+  flex: 0 0 auto;
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-accent);
+  background: rgba(92, 176, 185, 0.1);
+  color: hsl(186, 38%, 28%);
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-email-verify:hover:not(:disabled) {
+  background: rgba(92, 176, 185, 0.18);
+}
+
+.btn-email-verify:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.email-hint-ok {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  opacity: 0.9;
 }
 
 .btn-verify {

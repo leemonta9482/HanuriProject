@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserLogin(BaseModel):
@@ -22,6 +22,27 @@ class RegisterResponse(BaseModel):
 class StudentIdVerifyResponse(BaseModel):
     verified: bool = True
     verification_token: str
+
+
+class UserIdAvailabilityResponse(BaseModel):
+    available: bool
+
+
+class RegistrationEmailCodeSendBody(BaseModel):
+    email: EmailStr
+
+
+class RegistrationEmailCodeSendResponse(BaseModel):
+    challenge_token: str
+
+
+class RegistrationEmailCodeVerifyBody(BaseModel):
+    challenge_token: str = Field(..., min_length=10)
+    code: str = Field(..., min_length=1, max_length=32)
+
+
+class RegistrationEmailCodeVerifyResponse(BaseModel):
+    email_verification_token: str
 
 
 class LoginUserInfo(BaseModel):

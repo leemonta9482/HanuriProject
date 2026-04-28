@@ -118,6 +118,9 @@ uv run fastapi dev main.py --host 0.0.0.0 --reload --port 8000
 
 - **auth** — 회원가입(학교 마스터 등록 학교만 허용, 학생증 OCR로 이름·학교명·학번 검증·동일 학교+학번 중복 차단)·짧은 수명 JWT 검증 토큰·로그인·프로필·비밀번호  
   - `GET /api/auth/schools` — 가입 화면용 학교 목록(노출 활성화 학교만)
+  - `GET /api/auth/user-id-available` — 회원가입 전 아이디 사용 가능 여부 (`user_id` 쿼리)
+  - `POST /api/auth/registration-email/send` — 회원가입 이메일로 4자리 인증번호 발송·챌린지 JWT 발급(JSON 본문 `email`)
+  - `POST /api/auth/registration-email/verify` — 인증번호 확인 후 회원가입 제출용 이메일 JWT 발급(JSON 본문 `challenge_token`, `code`)
 - **boards** — 판매글 CRUD, 이미지, 찜, 구매 요청, 신고
 - **feed** — 동일 학교 기준 통합 피드(판매+구매 희망), 검색·정렬
 - **wanted** — 구매 희망글 CRUD
@@ -139,7 +142,7 @@ uv run fastapi dev main.py --host 0.0.0.0 --reload --port 8000
 | 구분 | 내용 |
 |------|------|
 | 학교 마스터 | `School` 엔티티·`GET /api/admin/schools` 등 CRUD, 공개 목록 `GET /api/auth/schools` |
-| 회원가입 | 등록·노출된 학교만 선택 가능, OCR로 이름·학교명·학번 일치 검증, 동일 학교+학번 기가입 시 차단 |
+| 회원가입 | 등록·노출된 학교만 선택 가능, OCR로 이름·학교명·학번 일치 검증, 동일 학교+학번 기가입 시 차단, **이메일 4자리 인증번호**(`POST /api/auth/registration-email/*`, SMTP 미설정 시 콘솔에만 코드 출력) 후 가입 제출 |
 | 관리자 회원 | 승인·계정 상태 변경; **거절**은 메일 발송 성공 시에만 DB에서 사용자 삭제; **계정 삭제**는 메일 없이 삭제 |
 | 메일 | Gmail 등 SMTP는 `backend/.env`의 `SMTP_*` 설정. 미설정·실패 시 거절 플로우에서 삭제 생략(`502`) |
 

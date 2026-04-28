@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -6,6 +9,86 @@ from jose import JWTError, jwt
 from config import settings
 
 STUDENT_ID_VERIFY_PURPOSE = "student_id_verify"
+EMAIL_CODE_CHALLENGE_PURPOSE = "email_reg_code"
+EMAIL_REG_VERIFIED_PURPOSE = "email_reg_ok"
+
+
+def normalize_registration_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _email_code_hmac_key() -> bytes:
+    return hashlib.sha256((settings.jwt_secret + "|HanuriEmailRegCode").encode("utf-8")).digest()
+
+
+def create_email_code_challenge_token(normalized_email: str, code_four_digits: str) -> str:
+    email = normalize_registration_email(normalized_email)
+    digest = hmac.new(
+        _email_code_hmac_key(),
+        f"{email}\x00{code_four_digits}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    expire = datetime.now(UTC) + timedelta(minutes=5)
+    payload = {
+        "pur": EMAIL_CODE_CHALLENGE_PURPOSE,
+        "e": email,
+        "d": digest,
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def verify_email_code_challenge(challenge_token: str, code_input: str) -> str:
+    digits = "".join(c for c in code_input if c.isdigit())
+    if len(digits) != 4:
+        raise ValueError("인증번호 4자리를 입력해 주세요.")
+    try:
+        payload = jwt.decode(challenge_token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except JWTError as e:
+        raise ValueError("인증 시간이 만료되었거나 유효하지 않습니다. 인증번호를 다시 받아 주세요.") from e
+    if payload.get("pur") != EMAIL_CODE_CHALLENGE_PURPOSE:
+        raise ValueError("유효하지 않은 이메일 인증 요청입니다.")
+    email = payload.get("e")
+    expected_d = payload.get("d")
+    if not isinstance(email, str) or not isinstance(expected_d, str):
+        raise ValueError("유효하지 않은 이메일 인증 요청입니다.")
+    email = normalize_registration_email(email)
+    digest = hmac.new(
+        _email_code_hmac_key(),
+        f"{email}\x00{digits}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(digest, expected_d):
+        raise ValueError("인증번호가 일치하지 않습니다.")
+    return email
+
+
+def create_email_registration_verified_token(normalized_email: str) -> str:
+    email = normalize_registration_email(normalized_email)
+    expire = datetime.now(UTC) + timedelta(minutes=30)
+    payload = {
+        "pur": EMAIL_REG_VERIFIED_PURPOSE,
+        "e": email,
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_email_registration_verified_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except JWTError as e:
+        raise ValueError("이메일 인증이 만료되었거나 유효하지 않습니다. 이메일 인증을 다시 진행해 주세요.") from e
+    if payload.get("pur") != EMAIL_REG_VERIFIED_PURPOSE:
+        raise ValueError("유효하지 않은 이메일 인증 토큰입니다.")
+    e = payload.get("e")
+    if not isinstance(e, str) or not e.strip():
+        raise ValueError("유효하지 않은 이메일 인증 토큰입니다.")
+    return normalize_registration_email(e)
+
+
+def registration_email_verification_code() -> str:
+    return f"{secrets.randbelow(10000):04d}"
 
 
 def hash_password(plain: str) -> str:

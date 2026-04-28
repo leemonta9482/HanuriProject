@@ -71,6 +71,19 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
         return False
 
 
+def build_registration_email_code_message(code: str) -> tuple[str, str]:
+    """회원가입 이메일 인증(4자리) — (제목, 본문)."""
+    subject = "[하누리] 회원가입 이메일 인증번호"
+    body = (
+        f"인증번호: {code}\n\n"
+        "회원가입 화면에 위 4자리 번호를 5분 이내에 입력해 주세요.\n"
+        "본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.\n\n"
+        "본 메일은 발신 전용입니다.\n"
+        "하누리 운영팀\n"
+    )
+    return subject, body
+
+
 def build_registration_rejected_email(
     name: str,
     school_name: str | None,
