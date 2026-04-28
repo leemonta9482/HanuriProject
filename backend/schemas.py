@@ -76,21 +76,41 @@ class LoginResponse(BaseModel):
     user: LoginUserInfo
 
 
+class UserNotificationOut(BaseModel):
+    notification_id: int
+    kind: Literal["CHAT_MESSAGE", "BOARD_FAVORITED"]
+    room_id: int | None = None
+    board_id: int | None = None
+    title: str
+    body: str
+    created_at: object | None = None
+    read_at: object | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class UserNotificationListResponse(BaseModel):
+    items: list[UserNotificationOut]
+
+
 class AdminUserOut(BaseModel):
+    """관리자 회원 목록·상세 응답. 비밀번호는 포함하지 않습니다."""
+
     user_id: str
     name: str
     school_name: str
     phone: str
     email: str
-    student_id: str | None
+    student_id: str | None = None
     student_verified: bool
     manner_score: float
     trust_score: float
-    interest_major: str | None
+    interest_major: str | None = None
     account_status: str
     is_admin: bool
     registration_status: str
     student_id_card_path: str
+    profile_image_path: str | None = None
     created_at: object | None = None
     updated_at: object | None = None
 

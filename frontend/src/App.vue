@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
 import { getWsUrl, notifySessionInvalid, uploadsPublicUrl } from '@/api/client'
 import hanuriMark from '@/assets/hanuri-mark.png'
+import { useNotificationInbox } from '@/composables/useNotificationInbox'
 import { useAuthStore } from '@/stores/auth'
 
 interface LiveToastItem {
@@ -14,6 +16,15 @@ interface LiveToastItem {
 }
 
 const auth = useAuthStore()
+const { user } = storeToRefs(auth)
+const {
+  items: inboxItems,
+  count: inboxCount,
+  ingestLive,
+  acknowledgeChat,
+  dismissFavorite,
+  refreshNotifications,
+} = useNotificationInbox(user)
 const router = useRouter()
 const route = useRoute()
 
@@ -34,9 +45,13 @@ const isActivePostWriteWanted = computed(
 const searchQuery = ref('')
 
 const sessionToast = ref({ show: false, message: '' })
-/** 로그아웃 완료 등 — 화면 중앙 알림(브라우저 alert 대체) */
-const centerAlert = ref({ show: false, message: '' })
+/** 자발적 로그아웃 안내 — 잠시 후 자동 숨김 */
+const logoutToast = ref({ show: false, message: '' })
+let logoutToastTimer: ReturnType<typeof setTimeout> | null = null
 const liveToasts = ref<LiveToastItem[]>([])
+const inboxOpen = ref(false)
+const bellShaking = ref(false)
+const inboxWrapRef = ref<HTMLElement | null>(null)
 let sessionPollTimer: ReturnType<typeof setInterval> | null = null
 let sessionInvalidOnce = false
 let liveWs: WebSocket | null = null
@@ -119,8 +134,10 @@ function startBrandTyping() {
 }
 
 onMounted(() => {
+  document.addEventListener('pointerdown', onDocumentPointerDown, true)
   if (auth.isLoggedIn) void auth.hydrateFromServer()
   window.addEventListener('hanuri:session-invalid', onSessionInvalid)
+  window.addEventListener('hanuri:logout-toast', onLogoutToastEvent)
   /** 다른 기기에서 로그인한 뒤 이 탭이 API를 안 부르면 401을 못 받음 → 주기적으로 세션 확인 */
   sessionPollTimer = window.setInterval(() => {
     if (document.visibilityState !== 'visible' || !auth.isLoggedIn) return
@@ -130,10 +147,16 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
   stopBrandTyping()
 
   stopLiveStream()
   window.removeEventListener('hanuri:session-invalid', onSessionInvalid)
+  window.removeEventListener('hanuri:logout-toast', onLogoutToastEvent)
+  if (logoutToastTimer != null) {
+    clearTimeout(logoutToastTimer)
+    logoutToastTimer = null
+  }
   if (sessionPollTimer != null) {
     clearInterval(sessionPollTimer)
     sessionPollTimer = null
@@ -154,6 +177,22 @@ watch(
   { immediate: true },
 )
 
+function showLogoutToast(message = '로그아웃 되었습니다.') {
+  if (logoutToastTimer != null) {
+    clearTimeout(logoutToastTimer)
+    logoutToastTimer = null
+  }
+  logoutToast.value = { show: true, message }
+  logoutToastTimer = window.setTimeout(() => {
+    logoutToast.value = { show: false, message: '' }
+    logoutToastTimer = null
+  }, 2600)
+}
+
+function onLogoutToastEvent() {
+  showLogoutToast()
+}
+
 function onSearchSubmit() {
   const q = searchQuery.value.trim()
   void router.push({ name: 'home', query: q ? { q } : {} })
@@ -173,12 +212,8 @@ const canClearSearch = computed(() => {
 
 async function onLogout() {
   auth.logout()
-  centerAlert.value = { show: true, message: '로그아웃 되었습니다.' }
-  await router.push({ name: 'home' })
-}
-
-function closeCenterAlert() {
-  centerAlert.value = { show: false, message: '' }
+  showLogoutToast()
+  await router.replace({ name: 'home' })
 }
 
 function stopLiveStream() {
@@ -209,6 +244,54 @@ function onLiveToastClick(t: LiveToastItem) {
   }
 }
 
+function formatInboxTime(at: number): string {
+  try {
+    return new Date(at).toLocaleString('ko-KR', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}
+
+function onDocumentPointerDown(ev: MouseEvent | PointerEvent) {
+  if (!inboxOpen.value) return
+  const el = inboxWrapRef.value
+  const target = ev.target as Node | null
+  if (el && target && !el.contains(target)) {
+    inboxOpen.value = false
+  }
+}
+
+function onBellShakeAnimationEnd() {
+  bellShaking.value = false
+}
+
+function onNotificationBellClick() {
+  const opening = !inboxOpen.value
+  inboxOpen.value = opening
+  if (opening) void refreshNotifications()
+  bellShaking.value = false
+  void nextTick(() => {
+    bellShaking.value = true
+  })
+}
+
+function onInboxChatClick(roomId: number) {
+  inboxOpen.value = false
+  void acknowledgeChat(roomId)
+  void router.push({ name: 'chat', query: { room: String(roomId) } })
+}
+
+async function onInboxFavoriteClick(notificationId: number, boardId: number) {
+  inboxOpen.value = false
+  await dismissFavorite(notificationId)
+  void router.push({ name: 'board-detail', params: { id: String(boardId) } })
+}
+
 function handleLivePayload(data: Record<string, unknown>) {
   const typ = data.type
   if (typ === 'error') {
@@ -219,6 +302,9 @@ function handleLivePayload(data: Record<string, unknown>) {
     return
   }
   if (typ === 'ping' || typ === 'pong' || typ === 'connected') return
+  if (typ === 'chat' || typ === 'favorite') {
+    ingestLive(data)
+  }
   window.dispatchEvent(new CustomEvent('hanuri:live', { detail: data }))
   pushLiveToast(data)
 }
@@ -256,7 +342,21 @@ watch(
   (loggedIn) => {
     stopLiveStream()
     if (!loggedIn) liveToasts.value = []
+    if (!loggedIn) inboxOpen.value = false
     if (loggedIn) void runLiveStream()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => [route.name, route.query.room] as const,
+  ([name, roomQ]) => {
+    if (name !== 'chat') return
+    const raw = Array.isArray(roomQ) ? roomQ[0] : roomQ
+    const rid = typeof raw === 'string' ? Number(raw) : NaN
+    if (!Number.isNaN(rid) && rid > 0) {
+      void acknowledgeChat(rid)
+    }
   },
   { immediate: true },
 )
@@ -364,6 +464,77 @@ watch(
                 </RouterLink>
               </div>
             </div>
+            <div
+              ref="inboxWrapRef"
+              class="nav-inbox"
+              :class="{ 'nav-inbox--open': inboxOpen }"
+            >
+              <button
+                type="button"
+                class="nav-inbox-trigger"
+                aria-label="알림"
+                :aria-expanded="inboxOpen"
+                :aria-controls="'nav-inbox-panel'"
+                @click.stop="onNotificationBellClick"
+              >
+                <svg
+                  class="nav-inbox-icon"
+                  :class="{ 'nav-inbox-icon--shaking': bellShaking }"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  fill="none"
+                  @animationend="onBellShakeAnimationEnd"
+                >
+                  <path
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span v-if="inboxCount > 0" class="nav-inbox-badge">{{ inboxCount > 99 ? '99+' : inboxCount }}</span>
+              </button>
+              <div
+                v-show="inboxOpen"
+                id="nav-inbox-panel"
+                class="nav-inbox-panel"
+                role="region"
+                aria-label="확인하지 않은 알림"
+                @click.stop
+              >
+                <p v-if="inboxItems.length === 0" class="nav-inbox-empty">새 알림이 없습니다</p>
+                <ul v-else class="nav-inbox-list">
+                  <li
+                    v-for="item in inboxItems"
+                    :key="item.kind === 'chat' ? `c-${item.room_id}` : `f-${item.notification_id}`"
+                  >
+                    <button
+                      v-if="item.kind === 'chat'"
+                      type="button"
+                      class="nav-inbox-item nav-inbox-item--chat"
+                      @click="onInboxChatClick(item.room_id)"
+                    >
+                      <span class="nav-inbox-item-k">채팅</span>
+                      <span class="nav-inbox-item-title">{{ item.title }}</span>
+                      <span class="nav-inbox-item-body">{{ item.body }}</span>
+                      <span class="nav-inbox-item-time">{{ formatInboxTime(item.at) }}</span>
+                    </button>
+                    <button
+                      v-else
+                      type="button"
+                      class="nav-inbox-item nav-inbox-item--fav"
+                      @click="onInboxFavoriteClick(item.notification_id, item.board_id)"
+                    >
+                      <span class="nav-inbox-item-k">찜</span>
+                      <span class="nav-inbox-item-body">{{ item.body }}</span>
+                      <span class="nav-inbox-item-time">{{ formatInboxTime(item.at) }}</span>
+                      <span class="nav-inbox-item-hint">탭하여 확인</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
             <div class="nav-user-dropdown">
               <div class="nav-user-dropdown-trigger" tabindex="0">
                 <RouterLink
@@ -454,21 +625,13 @@ watch(
       <RouterView />
     </main>
     <Teleport to="body">
-      <div v-if="centerAlert.show" class="center-alert-backdrop" @click.self="closeCenterAlert">
-        <div
-          class="center-alert"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="center-alert-msg"
-        >
-          <p id="center-alert-msg" class="center-alert-text">{{ centerAlert.message }}</p>
-          <button type="button" class="center-alert-btn" @click="closeCenterAlert">확인</button>
-        </div>
+      <div v-if="sessionToast.show" class="session-toast" role="alert">
+        {{ sessionToast.message }}
       </div>
     </Teleport>
     <Teleport to="body">
-      <div v-if="sessionToast.show" class="session-toast" role="alert">
-        {{ sessionToast.message }}
+      <div v-if="logoutToast.show" class="logout-toast" role="status">
+        {{ logoutToast.message }}
       </div>
     </Teleport>
     <Teleport to="body">
@@ -1058,6 +1221,211 @@ watch(
   }
 }
 
+.nav-inbox {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.nav-inbox-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  margin: 0;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-heading);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 0;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.nav-inbox-trigger:hover {
+  background: rgba(92, 176, 185, 0.1);
+  border-color: rgba(92, 176, 185, 0.35);
+}
+
+.nav-inbox-icon {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  transform-origin: 50% 6%;
+}
+
+.nav-inbox-icon--shaking {
+  animation: nav-inbox-bell-shake 0.62s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes nav-inbox-bell-shake {
+  0% {
+    transform: rotate(0deg);
+  }
+  12% {
+    transform: rotate(-16deg);
+  }
+  24% {
+    transform: rotate(14deg);
+  }
+  36% {
+    transform: rotate(-11deg);
+  }
+  48% {
+    transform: rotate(9deg);
+  }
+  60% {
+    transform: rotate(-6deg);
+  }
+  72% {
+    transform: rotate(4deg);
+  }
+  84% {
+    transform: rotate(-2deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-inbox-icon--shaking {
+    animation: nav-inbox-bell-shake-reduced 0.35s ease-out both;
+  }
+}
+
+@keyframes nav-inbox-bell-shake-reduced {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  33% {
+    transform: rotate(-6deg);
+  }
+  66% {
+    transform: rotate(5deg);
+  }
+}
+
+.nav-inbox-badge {
+  position: absolute;
+  top: -0.12rem;
+  right: -0.12rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.nav-inbox-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 201;
+  width: min(20rem, calc(100vw - 1.5rem));
+  max-height: min(70vh, 24rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.35rem 0;
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.nav-inbox-empty {
+  margin: 0;
+  padding: 1rem 1rem 1.15rem;
+  font-size: 0.88rem;
+  text-align: center;
+  color: var(--color-text);
+  opacity: 0.78;
+}
+
+.nav-inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-inbox-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.18rem;
+  width: 100%;
+  padding: 0.62rem 0.85rem;
+  text-align: left;
+  font: inherit;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: none;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: background 0.12s ease;
+}
+
+.nav-inbox-item:last-child {
+  border-bottom: none;
+}
+
+.nav-inbox-item:hover {
+  background: rgba(92, 176, 185, 0.1);
+}
+
+.nav-inbox-item-k {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  opacity: 0.62;
+  color: var(--color-heading);
+}
+
+.nav-inbox-item-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.nav-inbox-item-body {
+  font-size: 0.85rem;
+  line-height: 1.42;
+  word-break: break-word;
+}
+
+.nav-inbox-item-time {
+  font-size: 0.71rem;
+  opacity: 0.62;
+}
+
+.nav-inbox-item-hint {
+  font-size: 0.71rem;
+  opacity: 0.52;
+}
+
+.nav-inbox--open .nav-inbox-trigger {
+  border-color: rgba(92, 176, 185, 0.55);
+  background: rgba(92, 176, 185, 0.12);
+}
+
+.nav-inbox-trigger:focus-visible {
+  outline: 2px solid rgba(92, 176, 185, 0.85);
+  outline-offset: 2px;
+}
+
 @media (max-width: 899px) {
   .header {
     padding-inline: 0.75rem;
@@ -1207,62 +1575,8 @@ watch(
   flex-direction: column;
 }
 
-.center-alert-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.45);
-  animation: center-alert-fade 0.2s ease-out;
-}
-
-.center-alert {
-  width: 100%;
-  max-width: 22rem;
-  padding: 1.35rem 1.25rem 1.15rem;
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
-  text-align: center;
-}
-
-.center-alert-text {
-  margin: 0 0 1.1rem;
-  font-size: 0.98rem;
-  line-height: 1.55;
-}
-
-.center-alert-btn {
-  min-width: 6.5rem;
-  padding: 0.55rem 1.1rem;
-  border-radius: 8px;
-  border: none;
-  background: var(--color-accent);
-  color: #fff;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-
-.center-alert-btn:hover {
-  filter: brightness(1.05);
-}
-
-@keyframes center-alert-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.session-toast {
+.session-toast,
+.logout-toast {
   position: fixed;
   left: 50%;
   bottom: 1.5rem;

@@ -1,6 +1,7 @@
 import hashlib
 import os
 import tempfile
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from starlette.datastructures import Headers, UploadFile as StarletteUploadFile
 
 from database import get_db
 from deps import get_current_user
-from models import School, User
+from models import School, User, UserNotification
 from ocr import (
     normalize_student_id,
     ocr_texts_contain_name_and_school,
@@ -35,6 +36,8 @@ from schemas import (
     UserIdAvailabilityResponse,
     UserLogin,
     UserProfileOut,
+    UserNotificationListResponse,
+    UserNotificationOut,
 )
 from security import (
     create_access_token,
@@ -443,5 +446,54 @@ def change_my_password(
             detail="현재 비밀번호가 일치하지 않습니다.",
         )
     user.password = hash_password(body.new_password)
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/me/notifications", response_model=UserNotificationListResponse)
+def list_my_notifications(
+    unread_only: bool = Query(True, description="미읽음만 (기본 True)"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> UserNotificationListResponse:
+    stmt = select(UserNotification).where(UserNotification.user_id == user.user_id)
+    if unread_only:
+        stmt = stmt.where(UserNotification.read_at.is_(None))
+    stmt = stmt.order_by(UserNotification.created_at.desc()).limit(120)
+    rows = db.scalars(stmt).all()
+    return UserNotificationListResponse(items=[UserNotificationOut.model_validate(r) for r in rows])
+
+
+@router.patch("/me/notifications/{notification_id}/read", response_model=dict[str, bool])
+def mark_my_notification_read(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, bool]:
+    row = db.get(UserNotification, notification_id)
+    if row is None or row.user_id != user.user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="알림을 찾을 수 없습니다.")
+    row.read_at = datetime.now(UTC).replace(tzinfo=None)
+    db.commit()
+    return {"ok": True}
+
+
+@router.patch("/me/notifications/read-chat-room/{room_id}", response_model=dict[str, bool])
+def mark_my_chat_notifications_read_for_room(
+    room_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, bool]:
+    rows = db.scalars(
+        select(UserNotification).where(
+            UserNotification.user_id == user.user_id,
+            UserNotification.kind == "CHAT_MESSAGE",
+            UserNotification.room_id == room_id,
+            UserNotification.read_at.is_(None),
+        ),
+    ).all()
+    now = datetime.now(UTC).replace(tzinfo=None)
+    for r in rows:
+        r.read_at = now
     db.commit()
     return {"ok": True}

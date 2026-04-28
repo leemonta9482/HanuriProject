@@ -65,7 +65,7 @@ def verify_email_code_challenge(challenge_token: str, code_input: str) -> str:
 
 def create_email_registration_verified_token(normalized_email: str) -> str:
     email = normalize_registration_email(normalized_email)
-    expire = datetime.now(UTC) + timedelta(minutes=30)
+    expire = datetime.now(UTC) + timedelta(minutes=5)
     payload = {
         "pur": EMAIL_REG_VERIFIED_PURPOSE,
         "e": email,

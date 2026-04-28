@@ -370,3 +370,19 @@ export interface ChatMessage {
 export interface ChatRoomClosed {
   notice_text: string
 }
+
+/** GET /api/auth/me/notifications */
+export interface UserNotificationItem {
+  notification_id: number
+  kind: 'CHAT_MESSAGE' | 'BOARD_FAVORITED'
+  room_id: number | null
+  board_id: number | null
+  title: string
+  body: string
+  created_at?: string | null
+  read_at?: string | null
+}
+
+export interface UserNotificationListResponse {
+  items: UserNotificationItem[]
+}

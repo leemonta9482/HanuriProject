@@ -160,3 +160,20 @@ CREATE TABLE UserBlock (
     FOREIGN KEY (blocker_id) REFERENCES User(user_id) ON DELETE CASCADE,
     FOREIGN KEY (blocked_id) REFERENCES User(user_id) ON DELETE CASCADE
 );
+
+CREATE TABLE UserNotification (
+    notification_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL COMMENT '수신자',
+    kind ENUM('CHAT_MESSAGE', 'BOARD_FAVORITED') NOT NULL,
+    room_id INT NULL COMMENT 'CHAT_MESSAGE일 때 방',
+    board_id INT NULL COMMENT 'BOARD_FAVORITED일 때 게시글',
+    title VARCHAR(200) NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL DEFAULT NULL,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (room_id) REFERENCES ChatRoom(room_id) ON DELETE CASCADE,
+    FOREIGN KEY (board_id) REFERENCES Board(board_id) ON DELETE CASCADE,
+    INDEX idx_user_unread (user_id, read_at),
+    INDEX idx_user_created (user_id, created_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
