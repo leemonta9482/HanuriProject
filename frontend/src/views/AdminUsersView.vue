@@ -45,8 +45,14 @@ const formStudentVerified = ref(false)
 const formAccountStatus = ref<'ACTIVE' | 'DORMANT' | 'DELETED'>('ACTIVE')
 const formRegistrationStatus = ref<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING')
 const formIsAdmin = ref(false)
+const formRejectionReason = ref('')
 const saveError = ref('')
 const saving = ref(false)
+const flashOk = ref('')
+
+const willReject = computed(() => formRegistrationStatus.value === 'REJECTED')
+const willDelete = computed(() => formAccountStatus.value === 'DELETED')
+const isDestructive = computed(() => willReject.value || willDelete.value)
 
 async function load() {
   listError.value = ''
@@ -104,6 +110,7 @@ function openEdit(u: AdminUser) {
   formAccountStatus.value = u.account_status as 'ACTIVE' | 'DORMANT' | 'DELETED'
   formRegistrationStatus.value = u.registration_status as 'PENDING' | 'APPROVED' | 'REJECTED'
   formIsAdmin.value = u.is_admin
+  formRejectionReason.value = ''
   saveError.value = ''
   modalOpen.value = true
 }
@@ -116,6 +123,21 @@ function closeModal() {
 async function saveEdit() {
   if (!editing.value) return
   saveError.value = ''
+
+  if (willReject.value) {
+    const ok = window.confirm(
+      `「${editing.value.name}(${editing.value.user_id})」 님의 가입을 거절하면 계정이 즉시 삭제되고\n` +
+        `등록된 이메일(${editing.value.email})로 거절 안내가 발송됩니다.\n\n계속 진행할까요?`,
+    )
+    if (!ok) return
+  } else if (willDelete.value) {
+    const ok = window.confirm(
+      `「${editing.value.name}(${editing.value.user_id})」 님의 계정 상태를 ‘삭제’ 로 변경하면\n` +
+        `계정이 즉시 삭제됩니다. 계속 진행할까요?`,
+    )
+    if (!ok) return
+  }
+
   saving.value = true
   try {
     const payload: AdminUserUpdatePayload = {
@@ -131,9 +153,26 @@ async function saveEdit() {
       registration_status: formRegistrationStatus.value,
       is_admin: formIsAdmin.value,
     }
-    await patchAdminUser(editing.value.user_id, payload)
+    if (willReject.value && formRejectionReason.value.trim()) {
+      payload.rejection_reason = formRejectionReason.value.trim()
+    }
+    const res = await patchAdminUser(editing.value.user_id, payload)
+    if (res.deleted) {
+      if (willReject.value) {
+        flashOk.value = res.email_sent
+          ? '가입을 거절하고 계정을 삭제했습니다. 거절 안내 메일이 발송되었습니다.'
+          : '가입을 거절하고 계정을 삭제했습니다. (메일 서버 미설정으로 메일은 콘솔에만 기록됨)'
+      } else {
+        flashOk.value = '계정이 삭제되었습니다.'
+      }
+    } else {
+      flashOk.value = '회원 정보가 저장되었습니다.'
+    }
     await load()
     closeModal()
+    window.setTimeout(() => {
+      flashOk.value = ''
+    }, 5000)
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : '저장에 실패했습니다.'
   } finally {
@@ -155,6 +194,13 @@ function regLabel(s: string) {
   if (s === 'REJECTED') return '거절'
   return s
 }
+
+function accountLabel(s: string) {
+  if (s === 'ACTIVE') return '활성화'
+  if (s === 'DORMANT') return '휴면'
+  if (s === 'DELETED') return '삭제'
+  return s
+}
 </script>
 
 <template>
@@ -163,6 +209,7 @@ function regLabel(s: string) {
       <RouterLink class="tab" to="/admin/users">회원관리</RouterLink>
       <RouterLink class="tab" to="/admin/boards">게시글관리</RouterLink>
       <RouterLink class="tab" to="/admin/reports">신고관리</RouterLink>
+      <RouterLink class="tab" to="/admin/schools">가입관리</RouterLink>
     </nav>
 
     <header class="head">
@@ -171,6 +218,7 @@ function regLabel(s: string) {
     </header>
 
     <div v-if="listError" class="banner err" role="alert">{{ listError }}</div>
+    <div v-if="flashOk" class="banner ok" role="status">{{ flashOk }}</div>
 
     <div class="search">
       <label class="s search-combo">
@@ -255,7 +303,7 @@ function regLabel(s: string) {
             <td class="email">{{ u.email }}</td>
             <td><span class="pill">{{ regLabel(u.registration_status) }}</span></td>
             <td>{{ u.student_verified ? '학생 인증 완료' : '학생 인증 미완료' }}</td>
-            <td>{{ u.account_status }}</td>
+            <td>{{ accountLabel(u.account_status) }}</td>
             <td>{{ u.is_admin ? '관리자' : '일반유저' }}</td>
             <td>
               <button type="button" class="btn sm" @click="openEdit(u)">수정</button>
@@ -320,15 +368,15 @@ function regLabel(s: string) {
                 <select v-model="formRegistrationStatus" class="select-theme select-theme--block">
                   <option value="PENDING">승인 대기</option>
                   <option value="APPROVED">승인됨</option>
-                  <option value="REJECTED">거절</option>
+                  <option value="REJECTED">거절(계정 삭제 + 메일 발송)</option>
                 </select>
               </label>
               <label class="f"
                 >계정 상태
                 <select v-model="formAccountStatus" class="select-theme select-theme--block">
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="DORMANT">DORMANT</option>
-                  <option value="DELETED">DELETED</option>
+                  <option value="ACTIVE">활성화</option>
+                  <option value="DORMANT">휴면</option>
+                  <option value="DELETED">삭제(계정 영구 삭제)</option>
                 </select>
               </label>
               <label class="f chk"
@@ -337,7 +385,28 @@ function regLabel(s: string) {
               <label class="f chk"
                 ><input v-model="formIsAdmin" type="checkbox" /> 관리자 권한</label
               >
+              <label v-if="willReject" class="f full">
+                거절 사유 (선택, 메일 본문에 포함)
+                <textarea
+                  v-model="formRejectionReason"
+                  class="rejection-reason"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="예: 학생증 사진이 흐려 학번을 확인할 수 없습니다. 선명한 사진으로 다시 가입해 주세요."
+                />
+              </label>
             </div>
+
+            <p v-if="isDestructive" class="banner warn" role="alert">
+              <template v-if="willReject">
+                <strong>가입 거절</strong> 로 저장하면
+                <code>{{ editing.email }}</code> 으로 거절 안내 메일을 발송하고 계정을 즉시 삭제합니다.
+                되돌릴 수 없습니다.
+              </template>
+              <template v-else>
+                <strong>계정 삭제</strong> 로 저장하면 계정과 관련 데이터가 즉시 삭제됩니다. 되돌릴 수 없습니다.
+              </template>
+            </p>
 
             <p v-if="saveError" class="banner err">{{ saveError }}</p>
           </div>
@@ -588,6 +657,34 @@ function regLabel(s: string) {
 .banner.err {
   background: rgba(192, 57, 43, 0.12);
   color: #a93226;
+}
+
+.banner.ok {
+  background: rgba(39, 174, 96, 0.12);
+  color: #1e8449;
+}
+
+.banner.warn {
+  background: rgba(243, 156, 18, 0.15);
+  color: #9c640c;
+  line-height: 1.5;
+}
+
+.banner.warn code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}
+
+.rejection-reason {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  resize: vertical;
+  min-height: 5rem;
 }
 
 .modal-backdrop {

@@ -27,6 +27,14 @@ def normalize_for_match(s: str) -> str:
     return t.casefold()
 
 
+def normalize_student_id(s: str) -> str:
+    """학번 비교용 정규화: 공백/하이픈/괄호 등 구분문자를 제거하고 영문은 대소문자 통일."""
+    t = (s or "").strip()
+    # 흔한 구분문자(하이픈, 점, 슬래시, 언더스코어, 괄호, 콜론, 공백) 제거
+    t = re.sub(r"[\s\-./_:()\[\]{}]+", "", t)
+    return t.casefold()
+
+
 def ocr_texts_contain_name_and_school(texts: list[str], name: str, school_name: str) -> bool:
     """OCR 결과 전체에 입력한 이름·학교명이 부분 문자열로 포함되는지 검사."""
     blob = normalize_for_match("".join(texts))
@@ -38,6 +46,17 @@ def ocr_texts_contain_name_and_school(texts: list[str], name: str, school_name: 
     if not n or not s:
         return False
     return n in blob and s in blob
+
+
+def ocr_texts_contain_student_id(texts: list[str], student_id: str) -> bool:
+    """OCR 결과 전체에 학번이 포함되는지 검사(공백/하이픈 등 구분문자 무시)."""
+    sid = normalize_student_id(student_id)
+    if not sid:
+        return False
+    blob = normalize_student_id("".join(texts))
+    if not blob:
+        return False
+    return sid in blob
 
 
 def _prepare_image_for_ocr(path: Path, max_side: int = _MAX_INPUT_SIDE) -> tuple[str, bool]:

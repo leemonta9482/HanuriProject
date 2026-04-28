@@ -1,6 +1,9 @@
 uploads/*
 !uploads/.gitkeep
 
+# 로컬 비밀 설정 (SMTP, DB 비밀번호 등)
+.env
+
 # Python bytecode / cache
 __pycache__/
 *.py[cod]

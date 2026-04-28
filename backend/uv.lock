@@ -73,6 +73,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pydantic-settings" },
     { name = "pymysql" },
+    { name = "python-dotenv" },
     { name = "python-jose", extra = ["cryptography"] },
     { name = "sqlalchemy" },
 ]
@@ -87,6 +88,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
     { name = "pymysql", specifier = ">=1.1.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
 ]

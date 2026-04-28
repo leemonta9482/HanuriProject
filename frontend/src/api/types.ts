@@ -5,7 +5,7 @@ export interface RegisterPayload {
   school_name: string
   phone: string
   email: string
-  student_id?: string | null
+  student_id: string
   interest_major?: string | null
 }
 
@@ -14,6 +14,8 @@ export type RegisterWithStudentCardPayload = RegisterPayload & {
   student_id_card: File
   /** POST /api/auth/verify-student-id 로 발급 (이름·학교·이미지와 일치) */
   student_id_verification_token: string
+  /** POST /api/auth/registration-email/verify 로 발급 */
+  email_verification_token: string
 }
 
 export interface RegisterResponse {
@@ -93,6 +95,16 @@ export interface AdminUserUpdatePayload {
   account_status?: 'ACTIVE' | 'DORMANT' | 'DELETED'
   registration_status?: 'PENDING' | 'APPROVED' | 'REJECTED'
   is_admin?: boolean
+  /** registration_status === 'REJECTED' 일 때 안내 메일에 포함될 사유(선택) */
+  rejection_reason?: string | null
+}
+
+/** PATCH /api/admin/users/{user_id} 응답.
+ * 계정이 거절/삭제되어 사라진 경우 deleted=true, user=null 입니다. */
+export interface AdminUserPatchResult {
+  deleted: boolean
+  email_sent: boolean
+  user: AdminUser | null
 }
 
 export interface AdminBoard {
@@ -104,6 +116,50 @@ export interface AdminBoard {
   trade_type: string
   created_at?: string | null
   updated_at?: string | null
+}
+
+export interface School {
+  school_id: number
+  name: string
+  region: string | null
+  is_active: boolean
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface AdminSchoolListResponse {
+  items: School[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface AdminSchoolCreatePayload {
+  name: string
+  region?: string | null
+  is_active?: boolean
+}
+
+export interface AdminSchoolUpdatePayload {
+  name?: string
+  region?: string | null
+  is_active?: boolean
+}
+
+export interface PublicSchoolItem {
+  school_id: number
+  name: string
+  region: string | null
+}
+
+export interface PublicSchoolListResponse {
+  items: PublicSchoolItem[]
+}
+
+/** GET /api/auth/user-id-available */
+export interface UserIdAvailabilityResponse {
+  available: boolean
 }
 
 export interface AdminBoardListResponse {

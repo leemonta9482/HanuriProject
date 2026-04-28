@@ -111,6 +111,7 @@ function truncate(s: string, n: number) {
       <RouterLink class="tab" to="/admin/users">회원관리</RouterLink>
       <RouterLink class="tab" to="/admin/boards">게시글관리</RouterLink>
       <RouterLink class="tab" to="/admin/reports">신고관리</RouterLink>
+      <RouterLink class="tab" to="/admin/schools">가입관리</RouterLink>
     </nav>
 
     <header class="head">

@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session, aliased
 
 from database import get_db
 from deps import require_admin
-from models import Board, Report, User
+from email_utils import build_registration_rejected_email, send_email
+from models import Board, Report, School, User
 from schemas import (
     AdminBoardListResponse,
     AdminBoardOut,
@@ -16,9 +17,14 @@ from schemas import (
     AdminReportListResponse,
     AdminReportOut,
     AdminReportUpdate,
+    AdminSchoolCreate,
+    AdminSchoolListResponse,
+    AdminSchoolUpdate,
     AdminUserListResponse,
     AdminUserOut,
+    AdminUserPatchResult,
     AdminUserUpdate,
+    SchoolOut,
 )
 from upload_storage import delete_uploaded_file
 
@@ -83,19 +89,73 @@ def list_users(
     )
 
 
-@router.patch("/users/{user_id}", response_model=AdminUserOut)
+def _delete_user_account(db: Session, user: User) -> None:
+    """User 행과 학생증 이미지 파일을 삭제합니다(연관 테이블은 FK CASCADE)."""
+    card_path = user.student_id_card_path
+    profile_path = user.profile_image_path
+    db.delete(user)
+    db.commit()
+    if card_path:
+        delete_uploaded_file(card_path)
+    if profile_path:
+        delete_uploaded_file(profile_path)
+
+
+@router.patch("/users/{user_id}", response_model=AdminUserPatchResult)
 def update_user(
     user_id: str,
     body: AdminUserUpdate,
-    _: User = Depends(require_admin),
+    admin_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
-) -> AdminUserOut:
+) -> AdminUserPatchResult:
+    """회원 정보 갱신.
+
+    - `registration_status == "REJECTED"` 으로 변경 시: 먼저 거절 안내 메일을 보냅니다.
+      **메일 발송에 성공한 경우에만** 계정을 삭제합니다. 발송 실패(SMTP 오류·미설정 등) 시 계정은 유지되고 오류를 반환합니다.
+    - `account_status == "DELETED"` 로 변경 시: 메일 없이 계정을 **삭제**합니다.
+    - 그 외: 일반 필드 갱신.
+    """
     u = db.get(User, user_id.strip())
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
+
     data = body.model_dump(exclude_unset=True)
     if not data:
-        return AdminUserOut.model_validate(u)
+        return AdminUserPatchResult(user=AdminUserOut.model_validate(u))
+
+    rejection_reason = data.pop("rejection_reason", None)
+    will_reject = data.get("registration_status") == "REJECTED"
+    will_delete = data.get("account_status") == "DELETED"
+
+    if (will_reject or will_delete) and u.user_id == admin_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인 중인 관리자 본인의 계정은 거절/삭제할 수 없습니다.",
+        )
+
+    if will_reject:
+        target_email = u.email
+        target_name = u.name
+        target_school = u.school_name
+        subject, body_text = build_registration_rejected_email(
+            name=target_name, school_name=target_school, reason=rejection_reason
+        )
+        email_sent = send_email(target_email, subject, body_text)
+        if not email_sent:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    "거절 안내 메일 발송에 실패하여 계정을 삭제하지 않았습니다. "
+                    "SMTP 설정(smtp_host, smtp_user, smtp_password 등)과 발신 메일 주소를 확인한 뒤 다시 시도해 주세요."
+                ),
+            )
+        _delete_user_account(db, u)
+        return AdminUserPatchResult(deleted=True, email_sent=True, user=None)
+
+    if will_delete:
+        _delete_user_account(db, u)
+        return AdminUserPatchResult(deleted=True, email_sent=False, user=None)
+
     for key, value in data.items():
         setattr(u, key, value)
     try:
@@ -107,7 +167,7 @@ def update_user(
             detail="전화번호 또는 이메일이 이미 사용 중입니다.",
         ) from None
     db.refresh(u)
-    return AdminUserOut.model_validate(u)
+    return AdminUserPatchResult(user=AdminUserOut.model_validate(u))
 
 
 @router.get("/boards", response_model=AdminBoardListResponse)
@@ -263,3 +323,131 @@ def patch_report(
     db.commit()
     db.refresh(r)
     return _admin_report_out(db, r)
+
+@router.get("/schools", response_model=AdminSchoolListResponse)
+def list_schools(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    name: str | None = Query(None, description="학교명 검색(부분일치)"),
+    region: str | None = Query(None, description="지역 검색(부분일치)"),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminSchoolListResponse:
+    stmt = select(School)
+    filters = []
+    if name and name.strip():
+        filters.append(School.name.like(f"%{name.strip()}%"))
+    if region and region.strip():
+        filters.append(School.region.like(f"%{region.strip()}%"))
+    if filters:
+        stmt = stmt.where(*filters)
+
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    pages = ceil(total / page_size) if total else 0
+    offset = (page - 1) * page_size
+    rows = (
+        db.execute(stmt.order_by(School.name.asc()).offset(offset).limit(page_size))
+        .scalars()
+        .all()
+    )
+    items = [SchoolOut.model_validate(s) for s in rows]
+    return AdminSchoolListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
+    )
+
+
+@router.post("/schools", response_model=SchoolOut, status_code=status.HTTP_201_CREATED)
+def create_school(
+    body: AdminSchoolCreate,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> SchoolOut:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="학교명을 입력해 주세요.")
+    region = body.region.strip() if body.region else None
+    school = School(name=name, region=region or None, is_active=body.is_active)
+    db.add(school)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 등록된 학교명입니다.",
+        ) from None
+    db.refresh(school)
+    return SchoolOut.model_validate(school)
+
+
+@router.patch("/schools/{school_id}", response_model=SchoolOut)
+def update_school(
+    school_id: int,
+    body: AdminSchoolUpdate,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> SchoolOut:
+    school = db.get(School, school_id)
+    if school is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="학교를 찾을 수 없습니다.")
+    data = body.model_dump(exclude_unset=True)
+    if not data:
+        return SchoolOut.model_validate(school)
+
+    old_name = school.name
+    new_name: str | None = None
+    if "name" in data:
+        if data["name"] is None or not str(data["name"]).strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="학교명을 입력해 주세요.")
+        new_name = str(data["name"]).strip()
+        data["name"] = new_name
+    if "region" in data:
+        rv = data["region"]
+        data["region"] = rv.strip() if isinstance(rv, str) and rv.strip() else None
+
+    for key, value in data.items():
+        setattr(school, key, value)
+
+    try:
+        # 학교명 변경 시: 기존 회원의 school_name 도 함께 갱신해 가입 시 셀렉트와 회원 정보가 일치하도록 함.
+        if new_name is not None and new_name != old_name:
+            db.query(User).filter(User.school_name == old_name).update(
+                {User.school_name: new_name}, synchronize_session=False
+            )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 등록된 학교명입니다.",
+        ) from None
+    db.refresh(school)
+    return SchoolOut.model_validate(school)
+
+
+@router.delete("/schools/{school_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_school(
+    school_id: int,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    school = db.get(School, school_id)
+    if school is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="학교를 찾을 수 없습니다.")
+    in_use = db.scalar(
+        select(func.count()).select_from(User).where(User.school_name == school.name)
+    ) or 0
+    if in_use:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"해당 학교에 소속된 회원이 {in_use}명 있어 삭제할 수 없습니다. "
+                "회원 학교를 먼저 변경하거나 비활성화(is_active) 해 주세요."
+            ),
+        )
+    db.delete(school)
+    db.commit()
