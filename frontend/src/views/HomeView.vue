@@ -388,18 +388,15 @@ watch(sentinel, (el) => {
   color: var(--color-heading);
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-@media (max-width: 480px) {
+/* 좁은 화면: 제목과 정렬 셀렉트를 한 줄에서 수직 맞춤 */
+@media (max-width: 560px) {
   .toolbar {
-    grid-template-columns: 1fr;
-    row-gap: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    /* grid 레이아웃 해제 */
+    grid-template-columns: none;
   }
 
   .toolbar-lead {
@@ -407,12 +404,39 @@ watch(sentinel, (el) => {
   }
 
   .title {
-    text-align: center;
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    justify-self: unset;
   }
 
   .toolbar-trail {
-    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-shrink: 0;
+    width: auto;
+    min-width: 0;
   }
+
+  .actions {
+    flex-wrap: nowrap;
+  }
+
+  /* 정렬 UI 없음(비로그인): 제목만 전체 폭·가운데 */
+  .toolbar:not(:has(.actions)) .title {
+    flex: none;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .btn {
