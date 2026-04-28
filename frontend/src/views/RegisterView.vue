@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { registerUser, verifyStudentId } from '@/api/auth'
+import { fetchPublicSchools, registerUser, verifyStudentId } from '@/api/auth'
+import type { PublicSchoolItem } from '@/api/types'
 
 const router = useRouter()
 
@@ -23,6 +24,26 @@ const verificationToken = ref<string | null>(null)
 const verifyError = ref('')
 const verifyOk = ref(false)
 const verifyLoading = ref(false)
+
+const schools = ref<PublicSchoolItem[]>([])
+const schoolsLoading = ref(false)
+const schoolsError = ref('')
+
+async function loadSchools() {
+  schoolsError.value = ''
+  schoolsLoading.value = true
+  try {
+    const res = await fetchPublicSchools()
+    schools.value = res.items
+  } catch (e) {
+    schoolsError.value = e instanceof Error ? e.message : '학교 목록을 불러오지 못했습니다.'
+    schools.value = []
+  } finally {
+    schoolsLoading.value = false
+  }
+}
+
+onMounted(() => loadSchools())
 
 function onStudentCardChange(ev: Event) {
   const input = ev.target as HTMLInputElement
@@ -45,8 +66,13 @@ async function onVerifyStudentId() {
   verificationToken.value = null
   const n = name.value.trim()
   const sn = schoolName.value.trim()
+  const sid = studentId.value.trim()
   if (!n || !sn) {
     verifyError.value = '이름과 학교명을 입력한 뒤 인증해 주세요.'
+    return
+  }
+  if (!sid) {
+    verifyError.value = '학번을 입력한 뒤 인증해 주세요.'
     return
   }
   if (!studentIdCard.value) {
@@ -58,6 +84,7 @@ async function onVerifyStudentId() {
     const res = await verifyStudentId({
       name: n,
       school_name: sn,
+      student_id: sid,
       student_id_card: studentIdCard.value,
     })
     verificationToken.value = res.verification_token
@@ -83,8 +110,12 @@ async function onSubmit() {
     error.value = '학생증 이미지를 첨부해 주세요.'
     return
   }
+  if (!studentId.value.trim()) {
+    error.value = '학번을 입력해 주세요.'
+    return
+  }
   if (!verificationToken.value) {
-    error.value = '학생증 인증하기를 눌러 이름·학교명이 카드와 일치하는지 확인해 주세요.'
+    error.value = '학생증 인증하기를 눌러 이름·학교명·학번이 카드와 일치하는지 확인해 주세요.'
     return
   }
   loading.value = true
@@ -96,7 +127,7 @@ async function onSubmit() {
       school_name: schoolName.value.trim(),
       phone: phone.value.trim(),
       email: email.value.trim(),
-      student_id: studentId.value.trim() || null,
+      student_id: studentId.value.trim(),
       interest_major: interestMajor.value.trim() || null,
       student_id_card: studentIdCard.value,
       student_id_verification_token: verificationToken.value,
@@ -115,8 +146,8 @@ async function onSubmit() {
     <div class="card">
       <h1 class="title">회원가입</h1>
       <p class="lead">
-        가입 신청 후 관리자 승인이 완료되어야 로그인할 수 있습니다. 학생증 사진으로 이름·학교명을 확인한 뒤 가입할 수
-        있습니다.
+        가입 신청 후 관리자 승인이 완료되어야 로그인할 수 있습니다. 학생증 사진으로 이름·학교명·학번을 확인한 뒤 가입할 수
+        있으며, 동일 학교의 같은 학번으로는 중복 가입이 불가합니다.
       </p>
       <form class="form" @submit.prevent="onSubmit">
         <label class="field">
@@ -133,13 +164,35 @@ async function onSubmit() {
         </label>
         <label class="field">
           <span class="label">학교명 <span class="req">*</span></span>
-          <input
+          <select
             v-model="schoolName"
-            type="text"
             name="school_name"
             required
-            maxlength="100"
-            placeholder="예: 한우리대학교 (학생증 표기와 동일)"
+            class="field-select"
+            :disabled="schoolsLoading || !!schoolsError"
+            @change="clearVerificationIfIdentityChanged"
+          >
+            <option value="" disabled>
+              {{ schoolsLoading ? '학교 목록 불러오는 중…' : '학교를 선택해 주세요' }}
+            </option>
+            <option v-for="s in schools" :key="s.school_id" :value="s.name">
+              {{ s.name }}{{ s.region ? ` (${s.region})` : '' }}
+            </option>
+          </select>
+          <span v-if="schoolsError" class="file-hint" style="color: #c0392b">{{ schoolsError }}</span>
+          <span v-else-if="!schoolsLoading && !schools.length" class="file-hint">
+            등록된 학교가 없습니다. 관리자에게 문의해 주세요.
+          </span>
+        </label>
+        <label class="field">
+          <span class="label">학번 <span class="req">*</span></span>
+          <input
+            v-model="studentId"
+            type="text"
+            name="student_id"
+            required
+            maxlength="20"
+            placeholder="학생증에 적힌 학번 그대로"
             @input="clearVerificationIfIdentityChanged"
           />
         </label>
@@ -165,7 +218,7 @@ async function onSubmit() {
             {{ verifyLoading ? '인증 중…' : '학생증 인증하기' }}
           </button>
         </div>
-        <p v-if="verifyOk" class="hint success" role="status">학생증과 이름·학교명이 일치합니다. 아래 정보를 입력한 뒤 가입해 주세요.</p>
+        <p v-if="verifyOk" class="hint success" role="status">학생증과 이름·학교명·학번이 일치합니다. 아래 정보를 입력한 뒤 가입해 주세요.</p>
         <p v-if="verifyError" class="hint error" role="alert">{{ verifyError }}</p>
 
         <label class="field">
@@ -218,10 +271,6 @@ async function onSubmit() {
         <label class="field">
           <span class="label">이메일 <span class="req">*</span></span>
           <input v-model="email" type="email" name="email" required placeholder="email@example.com" />
-        </label>
-        <label class="field">
-          <span class="label">학번</span>
-          <input v-model="studentId" type="text" name="student_id" maxlength="20" placeholder="선택" />
         </label>
         <label class="field">
           <span class="label">관심 전공</span>
@@ -317,6 +366,27 @@ async function onSubmit() {
   outline: 2px solid rgba(92, 176, 185, 0.45);
   outline-offset: 0;
   border-color: rgba(92, 176, 185, 0.6);
+}
+
+.field-select {
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 1rem;
+  appearance: auto;
+}
+
+.field-select:focus {
+  outline: 2px solid rgba(92, 176, 185, 0.45);
+  outline-offset: 0;
+  border-color: rgba(92, 176, 185, 0.6);
+}
+
+.field-select:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .file-input {

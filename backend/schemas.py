@@ -97,6 +97,59 @@ class AdminUserUpdate(BaseModel):
     account_status: Literal["ACTIVE", "DORMANT", "DELETED"] | None = None
     registration_status: Literal["PENDING", "APPROVED", "REJECTED"] | None = None
     is_admin: bool | None = None
+    # 가입 승인 거절(REJECTED) 시 안내 메일에 포함될 사유 (선택)
+    rejection_reason: str | None = Field(None, max_length=500)
+
+
+class AdminUserPatchResult(BaseModel):
+    """회원 PATCH 결과. 계정이 삭제된 경우 user 는 null 입니다."""
+
+    deleted: bool = False
+    email_sent: bool = False
+    user: AdminUserOut | None = None
+
+
+class SchoolOut(BaseModel):
+    school_id: int
+    name: str
+    region: str | None = None
+    is_active: bool = True
+    created_at: object | None = None
+    updated_at: object | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class AdminSchoolListResponse(BaseModel):
+    items: list[SchoolOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+class AdminSchoolCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    region: str | None = Field(None, max_length=100)
+    is_active: bool = True
+
+
+class AdminSchoolUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    region: str | None = Field(None, max_length=100)
+    is_active: bool | None = None
+
+
+class PublicSchoolItem(BaseModel):
+    school_id: int
+    name: str
+    region: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class PublicSchoolListResponse(BaseModel):
+    items: list[PublicSchoolItem]
 
 
 class AdminBoardOut(BaseModel):

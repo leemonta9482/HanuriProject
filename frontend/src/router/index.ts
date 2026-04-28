@@ -103,6 +103,12 @@ const router = createRouter({
       component: () => import('../views/AdminReportsView.vue'),
       meta: { requiresAdmin: true },
     },
+    {
+      path: '/admin/schools',
+      name: 'admin-schools',
+      component: () => import('../views/AdminSchoolsView.vue'),
+      meta: { requiresAdmin: true },
+    },
   ],
 })
 

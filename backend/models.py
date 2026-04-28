@@ -5,6 +5,23 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
 
+class School(Base):
+    """가입관리: 회원가입에서 선택 가능한 학교 마스터 데이터."""
+
+    __tablename__ = "School"
+
+    school_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    region: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
+    created_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at: Mapped[object] = mapped_column(
+        TIMESTAMP,
+        server_default=func.current_timestamp(),
+        server_onupdate=func.current_timestamp(),
+    )
+
+
 class User(Base):
     __tablename__ = "User"
 

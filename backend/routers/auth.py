@@ -12,12 +12,19 @@ from starlette.datastructures import Headers, UploadFile as StarletteUploadFile
 
 from database import get_db
 from deps import get_current_user
-from models import User
-from ocr import ocr_texts_contain_name_and_school, run_ocr_on_image_path
+from models import School, User
+from ocr import (
+    normalize_student_id,
+    ocr_texts_contain_name_and_school,
+    ocr_texts_contain_student_id,
+    run_ocr_on_image_path,
+)
 from schemas import (
     LoginResponse,
     LoginUserInfo,
     PasswordChangeBody,
+    PublicSchoolItem,
+    PublicSchoolListResponse,
     RegisterResponse,
     StudentIdVerifyResponse,
     UserLogin,
@@ -35,13 +42,62 @@ from upload_storage import delete_uploaded_file, save_profile_image, save_studen
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+@router.get("/schools", response_model=PublicSchoolListResponse)
+def list_public_schools(db: Session = Depends(get_db)) -> PublicSchoolListResponse:
+    """회원가입 화면용 학교 목록(노출 활성화된 학교만, 이름순)."""
+    rows = (
+        db.execute(
+            select(School).where(School.is_active == True).order_by(School.name.asc())  # noqa: E712
+        )
+        .scalars()
+        .all()
+    )
+    return PublicSchoolListResponse(items=[PublicSchoolItem.model_validate(s) for s in rows])
+
+
+def _find_existing_user_by_school_and_student_id(
+    db: Session, school_name: str, student_id: str
+) -> User | None:
+    """동일 학교 + 동일 학번 회원이 이미 존재하는지 확인.
+
+    OCR 등 외부 입력은 공백/하이픈 등이 섞일 수 있으므로 normalize 후 비교합니다.
+    """
+    target = normalize_student_id(student_id)
+    if not target:
+        return None
+    rows = (
+        db.execute(
+            select(User).where(
+                User.school_name == school_name.strip(),
+                User.student_id.is_not(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for u in rows:
+        if u.student_id and normalize_student_id(u.student_id) == target:
+            return u
+    return None
+
+
 @router.post("/verify-student-id", response_model=StudentIdVerifyResponse)
 async def verify_student_id(
     name: str = Form(..., min_length=1, max_length=50),
     school_name: str = Form(..., min_length=1, max_length=100),
+    student_id: str = Form(..., min_length=1, max_length=20),
     student_id_card: UploadFile = File(..., description="학생증 이미지"),
+    db: Session = Depends(get_db),
 ) -> StudentIdVerifyResponse:
-    """입력한 이름·학교명이 학생증 OCR 결과에 포함되는지 검사 후, 회원가입용 짧은 수명 토큰을 발급합니다."""
+    """입력한 이름·학교명·학번이 학생증 OCR 결과에 포함되는지 검사하고,
+    동일 학교·학번으로 이미 가입된 회원이 없는지 확인한 뒤 회원가입용 짧은 수명 토큰을 발급합니다.
+    """
+    if _find_existing_user_by_school_and_student_id(db, school_name, student_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="해당 학교의 동일 학번으로 이미 가입된 계정이 있습니다.",
+        )
+
     raw = await student_id_card.read()
     if len(raw) == 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="빈 파일은 업로드할 수 없습니다.")
@@ -71,8 +127,13 @@ async def verify_student_id(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="학생증에서 입력하신 이름 또는 학교명을 찾지 못했습니다. 사진이 선명한지, 이름·학교명이 카드에 적힌 대로인지 확인해 주세요.",
             )
+        if not ocr_texts_contain_student_id(texts, student_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="학생증에서 입력하신 학번을 찾지 못했습니다. 학번이 카드에 적힌 그대로인지, 사진이 선명한지 확인해 주세요.",
+            )
 
-        token = create_student_id_verify_token(name, school_name, file_hash)
+        token = create_student_id_verify_token(name, school_name, student_id, file_hash)
         return StudentIdVerifyResponse(verified=True, verification_token=token)
     finally:
         try:
@@ -89,7 +150,7 @@ async def register(
     school_name: str = Form(..., min_length=1, max_length=100),
     phone: str = Form(..., min_length=1, max_length=20),
     email: str = Form(..., min_length=1, max_length=100),
-    student_id: str | None = Form(None),
+    student_id: str = Form(..., min_length=1, max_length=20),
     interest_major: str | None = Form(None),
     student_id_verification_token: str = Form(..., description="POST /verify-student-id 로 발급받은 토큰"),
     student_id_card: UploadFile = File(..., description="학생증 이미지"),
@@ -100,7 +161,7 @@ async def register(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="빈 파일은 업로드할 수 없습니다.")
     file_hash = hashlib.sha256(raw).hexdigest()
     try:
-        vn, vs, vh = decode_student_id_verify_token(student_id_verification_token)
+        vn, vs, vsid, vh = decode_student_id_verify_token(student_id_verification_token)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if vh != file_hash:
@@ -112,6 +173,27 @@ async def register(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="이름 또는 학교명이 학생증 인증 당시와 일치하지 않습니다.",
+        )
+    if normalize_student_id(vsid) != normalize_student_id(student_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="학번이 학생증 인증 당시와 일치하지 않습니다. 학생증 인증을 다시 진행해 주세요.",
+        )
+
+    school_name_stripped = school_name.strip()
+    school_row = db.execute(
+        select(School).where(School.name == school_name_stripped, School.is_active == True)  # noqa: E712
+    ).scalar_one_or_none()
+    if school_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="등록되지 않은 학교입니다. 가입 화면의 학교 목록에서 선택해 주세요.",
+        )
+
+    if _find_existing_user_by_school_and_student_id(db, school_name, student_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="해당 학교의 동일 학번으로 이미 가입된 계정이 있습니다.",
         )
 
     upload = StarletteUploadFile(
@@ -127,7 +209,7 @@ async def register(
         school_name=school_name.strip(),
         phone=phone.strip(),
         email=email.strip().lower(),
-        student_id=student_id.strip() if student_id else None,
+        student_id=student_id.strip(),
         interest_major=interest_major.strip() if interest_major else None,
         registration_status="PENDING",
         student_id_card_path=relative_path,

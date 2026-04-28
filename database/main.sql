@@ -4,6 +4,18 @@ COLLATE utf8mb4_general_ci;
 
 USE HanuriProject;
 
+-- 가입관리: 회원가입 시 선택 가능한 학교 목록
+-- 관리자 페이지(가입관리)에서 등록/수정/삭제하며,
+-- 가입 화면에서는 GET /api/auth/schools 로 셀렉트 박스에 노출됩니다.
+CREATE TABLE School (
+    school_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,            -- 학교명 (가입 시 User.school_name 으로 저장됨)
+    region VARCHAR(100) NULL,                     -- 지역(선택)
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,      -- 가입 화면 노출 여부 (false 이면 셀렉트에서 숨김)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- 유저 테이블
 CREATE TABLE User (
     user_id VARCHAR(50) PRIMARY KEY,         -- 아이디 (PK)

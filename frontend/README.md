@@ -88,16 +88,27 @@ npm run preview
 
 | 경로 | 설명 |
 |------|------|
-| `src/App.vue` | 레이아웃·헤더(로고·검색·네비·드롭다운)·전역 알림(WebSocket)·전역 이벤트 등 |
+| `src/App.vue` | 레이아웃·헤더(로고·검색·네비·드롭다운)·전역 알림(WebSocket)·전역 이벤트 등. 관리자 메뉴에 **가입 관리** 링크 포함 |
 | `src/main.ts` | 앱 부트스트랩, Pinia·Router 연결 |
-| `src/router/index.ts` | 경로·`meta.requiresAuth` / `requiresAdmin` 가드 |
-| `src/views/` | 화면별 뷰(홈, 글 작성·상세, 채팅, 로그인, 관리자 등) |
-| `src/api/` | 엔드포인트별 클라이언트(`auth`, `boards`, `feed`, `chat` …) 및 공통 `client.ts` |
+| `src/router/index.ts` | 경로·`meta.requiresAuth` / `requiresAdmin` 가드. 관리자 경로 `/admin/schools`(가입관리) 등 |
+| `src/views/` | 화면별 뷰. **회원가입**(`RegisterView`: 학교 셀렉트·학번·학생증 OCR 인증), **관리자**(`AdminUsersView`, `AdminSchoolsView`, `AdminBoardsView`, `AdminReportsView`) |
+| `src/api/` | 엔드포인트별 클라이언트(`auth`, `boards`, `feed`, `chat`, `admin` …) 및 공통 `client.ts` |
 | `src/stores/` | Pinia 스토어 |
 | `src/assets/` | 전역 스타일 등 |
 | `public/` | 정적 자산(파비콘 등) |
 
-### API 베이스 URL (개발)
+---
+
+## 기능 요약 (가입·관리자)
+
+| 구분 | 내용 |
+|------|------|
+| 회원가입 | `GET /api/auth/schools`로 학교 **셀렉트** 목록 로드. 이름·학교·**학번**·학생증 이미지로 OCR 인증 후 가입. 학교·학번 중복은 백엔드에서 검증 |
+| 관리자 · 가입관리 | `/admin/schools` — 학교 정보 등록·수정·삭제·노출 여부 |
+| 관리자 · 회원 | `/admin/users` — 회원 수정; 가입 승인 **거절**(메일 발송 성공 시에만 계정 삭제)·계정 상태 **삭제** 등. 계정·승인 상태는 UI에서 한글 라벨(활성화·휴면·삭제 등) 표시 |
+| 기타 관리자 | 게시글·신고 관리 기존과 동일 |
+
+---
 
 `src/api/client.ts`의 `getBaseUrl()`이 백엔드 주소를 결정합니다. 개발 모드에서는 기본적으로 **현재 접속 호스트 + 포트 8000**(예: `http://127.0.0.1:8000`)을 쓰고, 필요 시 `.env.development`의 `VITE_API_BASE_URL`로 덮어쓸 수 있습니다. 운영 빌드에서는 `VITE_API_BASE_URL` 등 환경 변수 설정이 필요합니다.
 

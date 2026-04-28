@@ -11,6 +11,7 @@ dependencies = [
     "bcrypt>=4.0.0",
     "python-jose[cryptography]>=3.3.0",
     "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
     "email-validator>=2.0.0",
     "pillow>=10.0.0",
     # 학생증 OCR (ocr.py) — CPU 휠은 Paddle 공식 인덱스에서 받음

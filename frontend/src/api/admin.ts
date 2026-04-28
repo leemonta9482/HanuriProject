@@ -6,9 +6,13 @@ import type {
   AdminReport,
   AdminReportListResponse,
   AdminReportUpdatePayload,
-  AdminUser,
+  AdminSchoolCreatePayload,
+  AdminSchoolListResponse,
+  AdminSchoolUpdatePayload,
   AdminUserListResponse,
+  AdminUserPatchResult,
   AdminUserUpdatePayload,
+  School,
 } from './types'
 
 export async function fetchAdminUsers(
@@ -30,14 +34,14 @@ export async function fetchAdminUsers(
 export async function patchAdminUser(
   userId: string,
   payload: AdminUserUpdatePayload,
-): Promise<AdminUser> {
+): Promise<AdminUserPatchResult> {
   const res = await apiFetch(`${getBaseUrl()}/api/admin/users/${encodeURIComponent(userId)}`, {
     method: 'PATCH',
     headers: authHeadersJson(),
     body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
-  return (await res.json()) as AdminUser
+  return (await res.json()) as AdminUserPatchResult
 }
 
 export async function fetchAdminBoards(
@@ -103,4 +107,50 @@ export async function patchAdminReport(
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return (await res.json()) as AdminReport
+}
+
+export async function fetchAdminSchools(
+  page: number,
+  pageSize: number,
+  filters?: { name?: string; region?: string },
+): Promise<AdminSchoolListResponse> {
+  const q = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  if (filters?.name?.trim()) q.set('name', filters.name.trim())
+  if (filters?.region?.trim()) q.set('region', filters.region.trim())
+  const res = await apiFetch(`${getBaseUrl()}/api/admin/schools?${q}`, {
+    headers: authHeadersJson(),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as AdminSchoolListResponse
+}
+
+export async function createAdminSchool(payload: AdminSchoolCreatePayload): Promise<School> {
+  const res = await apiFetch(`${getBaseUrl()}/api/admin/schools`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as School
+}
+
+export async function patchAdminSchool(
+  schoolId: number,
+  payload: AdminSchoolUpdatePayload,
+): Promise<School> {
+  const res = await apiFetch(`${getBaseUrl()}/api/admin/schools/${schoolId}`, {
+    method: 'PATCH',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as School
+}
+
+export async function deleteAdminSchool(schoolId: number): Promise<void> {
+  const res = await apiFetch(`${getBaseUrl()}/api/admin/schools/${schoolId}`, {
+    method: 'DELETE',
+    headers: authHeadersJson(),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
 }

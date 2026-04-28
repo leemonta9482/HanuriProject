@@ -414,6 +414,13 @@ watch(
                   >
                     신고 관리
                   </RouterLink>
+                  <RouterLink
+                    :to="{ name: 'admin-schools' }"
+                    class="nav-user-dropdown-item"
+                    role="menuitem"
+                  >
+                    가입 관리
+                  </RouterLink>
                 </div>
                 <RouterLink to="/chat" class="nav-user-dropdown-item" role="menuitem">채팅</RouterLink>
                 <RouterLink to="/my-shop" class="nav-user-dropdown-item" role="menuitem">내 상점</RouterLink>

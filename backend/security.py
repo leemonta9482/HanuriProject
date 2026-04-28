@@ -57,21 +57,27 @@ def verify_token_subject(token: str) -> str:
     return user_id
 
 
-def create_student_id_verify_token(name: str, school_name: str, file_sha256_hex: str) -> str:
-    """학생증 OCR 인증 성공 후, 회원가입 시 동일 이미지·이름·학교 검증용 짧은 수명 JWT."""
+def create_student_id_verify_token(
+    name: str,
+    school_name: str,
+    student_id: str,
+    file_sha256_hex: str,
+) -> str:
+    """학생증 OCR 인증 성공 후, 회원가입 시 동일 이미지·이름·학교·학번 검증용 짧은 수명 JWT."""
     expire = datetime.now(UTC) + timedelta(minutes=20)
     payload = {
         "pur": STUDENT_ID_VERIFY_PURPOSE,
         "n": name.strip(),
         "s": school_name.strip(),
+        "sid": student_id.strip(),
         "h": file_sha256_hex,
         "exp": expire,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def decode_student_id_verify_token(token: str) -> tuple[str, str, str]:
-    """(name, school_name, file_sha256_hex) 반환."""
+def decode_student_id_verify_token(token: str) -> tuple[str, str, str, str]:
+    """(name, school_name, student_id, file_sha256_hex) 반환."""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except JWTError as e:
@@ -80,7 +86,13 @@ def decode_student_id_verify_token(token: str) -> tuple[str, str, str]:
         raise ValueError("유효하지 않은 학생증 인증 토큰입니다.")
     n = payload.get("n")
     s = payload.get("s")
+    sid = payload.get("sid")
     h = payload.get("h")
-    if not isinstance(n, str) or not isinstance(s, str) or not isinstance(h, str):
+    if (
+        not isinstance(n, str)
+        or not isinstance(s, str)
+        or not isinstance(sid, str)
+        or not isinstance(h, str)
+    ):
         raise ValueError("유효하지 않은 학생증 인증 토큰입니다.")
-    return n.strip(), s.strip(), h.strip()
+    return n.strip(), s.strip(), sid.strip(), h.strip()
