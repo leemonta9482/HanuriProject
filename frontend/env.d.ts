@@ -8,6 +8,8 @@ declare module '*.vue' {
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string
+  /** VITE_API_BASE_URL 이 없을 때만 사용. 기본 8000 */
+  readonly VITE_API_BACKEND_PORT?: string
 }
 
 interface ImportMeta {

@@ -1,21 +1,99 @@
 /**
- * 개발: VITE_API_BASE_URL이 비어 있으면 **현재 페이지 호스트**에 포트 8000 (예: http://192.168.x.x:5173 → http://192.168.x.x:8000).
- * localhost에서 프론트만 열고 백엔드는 LAN IP에서만 뜨는 경우 `.env.development`에 VITE_API_BASE_URL=http://<본인IP>:8000 로 지정.
+ * API 베이스 URL
+ * - Cloudflare Tunnel: 브라우저는 **`https://mtaoft.shop/api/...`** 만 호출해야 함. `http://…:8000`은 Mixed Content 차단.
+ * - 인터넷에서 `http://mtaoft.shop:8000` 은 **공인으로 8000이 열려 있지 않아** 접속 불가가 정상(8000은 PC의 127.0.0.1에만 바인딩).
+ * - `.env.production`에는 `VITE_API_BASE_URL=https://mtaoft.shop` 권장(또는 비워 두면 HTTPS 공인 호스트에서는 `origin` 사용).
  */
-export function getBaseUrl(): string {
+function sameSiteApexOrWww(a: string, b: string): boolean {
+  const x = a.toLowerCase()
+  const y = b.toLowerCase()
+  if (x === y) return true
+  const strip = (h: string) => (h.startsWith('www.') ? h.slice(4) : h)
+  return strip(x) === strip(y)
+}
+
+/** HTTPS 페이지에서 같은 사이트로 `http://도메인:포트` 를 쓰면 브라우저가 막음 → `https://현재호스트` 로 통일 */
+function coerceApiBaseForHttpsPage(base: string): string {
+  if (typeof window === 'undefined' || window.location.protocol !== 'https:') {
+    return base
+  }
+  const pageHost = window.location.hostname
+  const pageLoop =
+    pageHost === 'localhost' ||
+    pageHost === '127.0.0.1' ||
+    pageHost === '[::1]' ||
+    pageHost === '::1'
+  if (pageLoop) return base
+
+  let u: URL
+  try {
+    u = new URL(base)
+  } catch {
+    return base
+  }
+  if (u.protocol !== 'http:') return base
+  if (sameSiteApexOrWww(u.hostname, pageHost)) {
+    return window.location.origin
+  }
+  return base
+}
+
+function computeApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL
   const env = typeof raw === 'string' ? raw.trim() : ''
-  if (import.meta.env.PROD) {
-    return env
-  }
-  if (typeof window !== 'undefined') {
-    const h = window.location.hostname
-    if (env) {
-      return env.replace(/\/$/, '')
+
+  const portRaw = import.meta.env.VITE_API_BACKEND_PORT
+  const backendPort =
+    typeof portRaw === 'string' && /^\d+$/.test(portRaw.trim()) ? portRaw.trim() : '8000'
+
+  if (env) {
+    const cleaned = env.replace(/\/$/, '')
+    try {
+      const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(cleaned)
+      const u = new URL(hasScheme ? cleaned : `http://${cleaned}`)
+      const noExplicitPort = u.port === ''
+      const loopback =
+        u.hostname === 'localhost' ||
+        u.hostname === '127.0.0.1' ||
+        u.hostname === '[::1]'
+      if (u.protocol === 'http:' && loopback && noExplicitPort) {
+        const h = u.hostname === '[::1]' ? '127.0.0.1' : u.hostname
+        return `http://${h}:${backendPort}`
+      }
+      const resolved = hasScheme ? cleaned : `${u.protocol}//${u.host}`.replace(/\/$/, '')
+      if (
+        typeof window !== 'undefined' &&
+        window.location.protocol === 'https:' &&
+        u.protocol === 'http:' &&
+        sameSiteApexOrWww(u.hostname, window.location.hostname)
+      ) {
+        return window.location.origin
+      }
+      return resolved
+    } catch {
+      return cleaned
     }
-    return `http://${h}:8000`
   }
-  return env || 'http://localhost:8000'
+
+  if (typeof window !== 'undefined') {
+    if (window.location.protocol === 'https:') {
+      const loopback =
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === '[::1]'
+      if (!loopback) {
+        return window.location.origin
+      }
+    }
+    const h = window.location.hostname
+    const host = h === '::1' || h === '[::1]' ? '127.0.0.1' : h
+    return `http://${host}:${backendPort}`
+  }
+  return `http://localhost:${backendPort}`
+}
+
+export function getBaseUrl(): string {
+  return coerceApiBaseForHttpsPage(computeApiBaseUrl())
 }
 
 /** HTTP API 베이스와 동일 호스트로 WebSocket URL (경로만 `/api/ws`). */

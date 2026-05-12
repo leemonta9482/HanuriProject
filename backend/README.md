@@ -55,25 +55,34 @@ uv sync
 
 가상환경을 활성화한 뒤, **항상 `backend` 디렉터리**에서 서버를 띄웁니다.
 
-### 로컬에서만 접속 (개발)
+API **리슨 포트는 8000으로 고정**합니다. (Cloudflare Tunnel `ingress`의 `/api`·`/uploads` 등과 맞출 때도 동일)
+
+### 로컬에서만 접속 (개발·터널 연동 시 권장)
 
 ```powershell
 .venv\Scripts\activate
-uv run fastapi dev main.py --reload --port 8000
+uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+또는 핫 리로드가 포함된 FastAPI CLI:
+
+```powershell
+.venv\Scripts\activate
+uv run fastapi dev main.py --reload --host 127.0.0.1 --port 8000
 ```
 
 브라우저에서 API 문서는 `http://127.0.0.1:8000/docs` , 헬스 체크는 `http://127.0.0.1:8000/` 입니다.
 
 ### 같은 네트워크의 다른 기기에서 접속
 
-호스트를 바인딩합니다.
+호스트만 `0.0.0.0`으로 바꿉니다. **포트는 여전히 8000**입니다.
 
 ```powershell
 .venv\Scripts\activate
-uv run fastapi dev main.py --host 0.0.0.0 --reload --port 8000
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-운영 배포 시에는 프로세스 관리·HTTPS·방화벽 등을 별도로 구성합니다.
+운영에서는 프로세스 관리·HTTPS(리버스 프록시 또는 터널)·방화벽 등을 별도로 구성합니다.
 
 ---
 
