@@ -82,6 +82,7 @@ HanuriProject/
 ├── backend/           # FastAPI 앱 (main.py, routers/, models.py, …)
 ├── frontend/          # Vue 3 SPA (src/views, src/api, …)
 ├── database/          # main.sql 등 DB 스크립트
+├── docs/              # 운영 가이드 (Cloudflare Tunnel 등)
 └── README.md
 ```
 
@@ -97,26 +98,44 @@ HanuriProject/
 
 ### 2. 백엔드
 
+API는 **포트 8000 고정**으로 띄웁니다. 자세한 절차는 `backend/README.md`를 참고합니다.
+
 ```bash
 cd backend
-# 의존성 설치 (uv 예시)
 uv sync
-# 또는 pip / 가상환경에 맞게 설치
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-API 문서: 브라우저에서 `http://127.0.0.1:8000/docs` (FastAPI Swagger)
+API 문서: `http://127.0.0.1:8000/docs`
 
 ### 3. 프론트엔드
+
+운영에 가깝게 보려면 **빌드 후** `preview`로 정적 파일을 서빙합니다. (기본 예: **127.0.0.1:80** — Windows에서는 관리자 권한이 필요할 수 있습니다.)
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run build
+npm run preview -- --host 127.0.0.1 --port 80
 ```
 
-Vite 기본 주소는 보통 `http://127.0.0.1:5173` 입니다.  
-API 베이스 URL은 `frontend/src/api/client.ts` 등 프로젝트 설정을 확인하세요.
+UI만 빠르게 수정할 때는 `npm run dev`(보통 5173)를 쓸 수 있습니다. 상세는 `frontend/README.md`와 `frontend/src/api/client.ts`를 참고하세요.
+
+---
+
+## 도메인 연결 (Cloudflare Tunnel 요약)
+
+외부에서 `https://구매한도메인` 으로 접속하려면 **Cloudflare Tunnel(`cloudflared`)** 을 쓰는 방식을 기준으로 합니다. 포트포워딩 없이 PC에서 백엔드(8000)·프론트(80 등)로 트래픽을 넘깁니다.
+
+1. **Cloudflare** 가입 후 도메인(예: 카페24에서 구매한 도메인)을 사이트로 추가하고, **네임서버를 Cloudflare로 변경**합니다.
+2. PC에 **`cloudflared` 설치** 후 `cloudflared tunnel login` 으로 계정과 연결합니다.
+3. **`cloudflared tunnel create <이름>`** 으로 터널을 만들고, `%USERPROFILE%\.cloudflared\config.yml`에 **ingress**를 작성합니다.  
+   예: `https://도메인/api/*` → `http://127.0.0.1:8000`, 정적 페이지·SPA 나머지 → `http://127.0.0.1:80` 등.
+4. **`cloudflared tunnel route dns <터널이름> 도메인`** 으로 DNS를 터널에 연결하거나, Cloudflare DNS에서 CNAME/터널 레코드를 수동으로 맞춥니다.
+5. PC에서 **백엔드·프론트·`cloudflared tunnel run …`** 을 동시에 실행한 뒤 브라우저로 확인합니다.
+6. 프론트 빌드 시 **`frontend/.env.production`** 에 `VITE_API_BASE_URL=https://도메인` 처럼 **HTTPS·같은 호스트**를 넣어 Mixed Content를 피합니다. 백엔드 `.env`의 `APP_PUBLIC_URL`도 동일한 공개 URL로 맞춥니다.
+
+단계별 설명·트러블슈팅·`www` 서브도메인은 **`docs/cloudflare-tunnel.md`** 에 정리되어 있습니다.
 
 ---
 

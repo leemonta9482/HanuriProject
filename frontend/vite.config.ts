@@ -11,6 +11,13 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
+  /** Cloudflare Tunnel 등으로 외부 도메인 Host로 preview에 접속할 때 필요 */
+  preview: {
+    host: '127.0.0.1',
+    port: 80,
+    strictPort: true,
+    allowedHosts: ['mtaoft.shop', 'www.mtaoft.shop'],
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
