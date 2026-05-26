@@ -295,9 +295,16 @@ function nextPage() {
           </h2>
 
           <div class="modal-body">
-            <label class="f full"
-              >학교명 <span class="req">*</span>
-              <input v-model="formName" type="text" maxlength="100" placeholder="예: 한우리대학교" />
+            <label class="f full">
+              <span class="f-field-label"><span class="req" aria-hidden="true">*</span>학교명</span>
+              <input
+                v-model="formName"
+                type="text"
+                maxlength="100"
+                placeholder="예: 한우리대학교"
+                required
+                aria-required="true"
+              />
             </label>
             <label class="f full"
               >지역
@@ -637,9 +644,15 @@ function nextPage() {
   font-size: 0.95rem;
 }
 
+/* column flex일 때 * 와 라벨 글자가 각각 한 줄이 되지 않도록 한 덩어리로 묶음 */
+.f-field-label {
+  color: var(--color-text);
+}
+
 .req {
   color: hsl(186, 38%, 32%);
-  margin-left: 0.15rem;
+  margin-right: 0.12em;
+  font-weight: 600;
 }
 
 .modal-actions {
