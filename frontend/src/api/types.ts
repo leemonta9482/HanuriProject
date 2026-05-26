@@ -56,6 +56,20 @@ export interface LoginResponse {
   user: LoginUserInfo
 }
 
+export interface PasswordResetRequestResponse {
+  message: string
+}
+
+export interface PasswordResetStatusResponse {
+  valid: boolean
+  detail?: string | null
+}
+
+export interface PasswordResetConfirmResponse {
+  ok: boolean
+  message: string
+}
+
 export interface AdminUser {
   user_id: string
   name: string

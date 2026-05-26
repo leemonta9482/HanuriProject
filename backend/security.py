@@ -11,6 +11,7 @@ from config import settings
 STUDENT_ID_VERIFY_PURPOSE = "student_id_verify"
 EMAIL_CODE_CHALLENGE_PURPOSE = "email_reg_code"
 EMAIL_REG_VERIFIED_PURPOSE = "email_reg_ok"
+PASSWORD_RESET_PURPOSE = "pwd_reset"
 
 
 def normalize_registration_email(email: str) -> str:
@@ -179,3 +180,33 @@ def decode_student_id_verify_token(token: str) -> tuple[str, str, str, str]:
     ):
         raise ValueError("유효하지 않은 학생증 인증 토큰입니다.")
     return n.strip(), s.strip(), sid.strip(), h.strip()
+
+
+def create_password_reset_token(user_id: str) -> str:
+    """비밀번호 재설정 링크용 JWT (5분 유효)."""
+    uid = user_id.strip()
+    if not uid:
+        raise ValueError("아이디가 비어 있습니다.")
+    expire = datetime.now(UTC) + timedelta(minutes=5)
+    payload = {
+        "pur": PASSWORD_RESET_PURPOSE,
+        "sub": uid,
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_password_reset_token(token: str) -> str:
+    """비밀번호 재설정 JWT에서 user_id 반환. 만료·위조 시 ValueError."""
+    try:
+        payload = jwt.decode(token.strip(), settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except JWTError as e:
+        raise ValueError(
+            "재설정 링크가 만료되었거나 유효하지 않습니다. 비밀번호 찾기를 다시 요청해 주세요."
+        ) from e
+    if payload.get("pur") != PASSWORD_RESET_PURPOSE:
+        raise ValueError("유효하지 않은 재설정 링크입니다.")
+    sub = payload.get("sub")
+    if not isinstance(sub, str) or not sub.strip():
+        raise ValueError("유효하지 않은 재설정 링크입니다.")
+    return sub.strip()

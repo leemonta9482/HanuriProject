@@ -17,6 +17,11 @@ const listError = ref('')
 const userSearchBy = ref<'user_id' | 'name' | 'school_name'>('user_id')
 const userSearchQuery = ref('')
 
+/** 가입 승인 분류 */
+const approvalFilter = ref<'all' | 'approved' | 'unapproved'>('all')
+/** 학생 인증 분류 */
+const studentVerifiedFilter = ref<'all' | 'verified' | 'unverified'>('all')
+
 const userSearchPlaceholder = computed(() => {
   switch (userSearchBy.value) {
     case 'user_id':
@@ -59,12 +64,21 @@ async function load() {
   loading.value = true
   try {
     const q = userSearchQuery.value.trim()
-    const filters: { user_id?: string; name?: string; school_name?: string } = {}
+    const filters: {
+      user_id?: string
+      name?: string
+      school_name?: string
+      approval?: 'approved' | 'unapproved'
+      studentVerified?: 'verified' | 'unverified'
+    } = {}
     if (q) {
       if (userSearchBy.value === 'user_id') filters.user_id = q
       else if (userSearchBy.value === 'name') filters.name = q
       else filters.school_name = q
     }
+    if (approvalFilter.value !== 'all') filters.approval = approvalFilter.value
+    if (studentVerifiedFilter.value !== 'all')
+      filters.studentVerified = studentVerifiedFilter.value
     const data = await fetchAdminUsers(page.value, pageSize.value, filters)
     items.value = data.items
     total.value = data.total
@@ -94,7 +108,14 @@ function onSearch() {
 function onReset() {
   userSearchBy.value = 'user_id'
   userSearchQuery.value = ''
+  approvalFilter.value = 'all'
+  studentVerifiedFilter.value = 'all'
   onSearch()
+}
+
+function onClassificationChange() {
+  page.value = 1
+  load()
 }
 
 function openEdit(u: AdminUser) {
@@ -246,6 +267,37 @@ function accountLabel(s: string) {
       </div>
     </div>
 
+    <div class="filters">
+      <label class="filt">
+        <span>가입 승인</span>
+        <select
+          v-model="approvalFilter"
+          class="select-theme select-theme--block filt-select"
+          aria-label="가입 승인 분류"
+          :disabled="loading"
+          @change="onClassificationChange"
+        >
+          <option value="all">전체</option>
+          <option value="approved">승인됨만</option>
+          <option value="unapproved">승인 미완료만 (대기·거절 등)</option>
+        </select>
+      </label>
+      <label class="filt">
+        <span>학생 인증</span>
+        <select
+          v-model="studentVerifiedFilter"
+          class="select-theme select-theme--block filt-select"
+          aria-label="학생 인증 분류"
+          :disabled="loading"
+          @change="onClassificationChange"
+        >
+          <option value="all">전체</option>
+          <option value="verified">인증 완료만</option>
+          <option value="unverified">미완료만</option>
+        </select>
+      </label>
+    </div>
+
     <div class="toolbar">
       <span class="meta"
         >총 <strong>{{ total }}</strong
@@ -291,10 +343,10 @@ function accountLabel(s: string) {
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="8" class="empty">불러오는 중…</td>
+            <td colspan="9" class="empty">불러오는 중…</td>
           </tr>
           <tr v-else-if="!items.length">
-            <td colspan="8" class="empty">회원이 없습니다.</td>
+            <td colspan="9" class="empty">회원이 없습니다.</td>
           </tr>
           <tr v-for="(u, idx) in items" :key="u.user_id">
             <td class="mono num">{{ (page - 1) * pageSize + idx + 1 }}</td>
@@ -539,10 +591,25 @@ function accountLabel(s: string) {
   align-items: center;
 }
 
-.btn.primary {
-  background: var(--color-accent);
-  color: #fff;
-  font-weight: 600;
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.filt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  flex: 0 1 auto;
+  min-width: 12rem;
+}
+
+.filt-select {
+  max-width: 22rem;
 }
 
 .meta {

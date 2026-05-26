@@ -18,12 +18,25 @@ import type {
 export async function fetchAdminUsers(
   page: number,
   pageSize: number,
-  filters?: { user_id?: string; name?: string; school_name?: string },
+  filters?: {
+    user_id?: string
+    name?: string
+    school_name?: string
+    approval?: 'approved' | 'unapproved'
+    studentVerified?: 'verified' | 'unverified'
+  },
 ): Promise<AdminUserListResponse> {
   const q = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (filters?.user_id?.trim()) q.set('user_id', filters.user_id.trim())
   if (filters?.name?.trim()) q.set('name', filters.name.trim())
   if (filters?.school_name?.trim()) q.set('school_name', filters.school_name.trim())
+  if (filters?.approval === 'approved' || filters?.approval === 'unapproved')
+    q.set('approval', filters.approval)
+  if (
+    filters?.studentVerified === 'verified' ||
+    filters?.studentVerified === 'unverified'
+  )
+    q.set('student_verified', filters.studentVerified)
   const res = await apiFetch(`${getBaseUrl()}/api/admin/users?${q}`, {
     headers: authHeadersJson(),
   })

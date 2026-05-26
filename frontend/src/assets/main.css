@@ -1,10 +1,17 @@
 @import './base.css';
 @import './select-theme.css';
 
+/* 본문·헤더 최대폭 변수 — App.vue 의 .layout-shell 에 적용됨 · 푸터는 분리되어 뷰 전체 폭 */
+:root {
+  --hanuri-page-max-width: 1400px;
+}
+
+/* 풀블리드 푸터: 뷰폭 한도·가로 패딩은 App.vue 의 .layout-shell 에만 적용 */
 #app {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 1.5rem;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   min-height: 100vh;
   font-weight: normal;
   display: flex;
@@ -45,8 +52,3 @@ a,
   }
 }
 
-@media (min-width: 1024px) {
-  #app {
-    padding: 2rem;
-  }
-}

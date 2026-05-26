@@ -4,6 +4,7 @@ import tempfile
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from starlette.datastructures import Headers, UploadFile as StarletteUploadFile
 
 from database import get_db
 from deps import get_current_user
+from config import settings
 from models import School, User, UserNotification
 from ocr import (
     normalize_student_id,
@@ -20,11 +22,20 @@ from ocr import (
     ocr_texts_contain_student_id,
     run_ocr_on_image_path,
 )
-from email_utils import build_registration_email_code_message, send_email
+from email_utils import (
+    build_password_reset_email,
+    build_registration_email_code_message,
+    send_email,
+)
 from schemas import (
     LoginResponse,
     LoginUserInfo,
     PasswordChangeBody,
+    PasswordResetConfirmBody,
+    PasswordResetConfirmResponse,
+    PasswordResetRequestBody,
+    PasswordResetRequestResponse,
+    PasswordResetStatusResponse,
     PublicSchoolItem,
     PublicSchoolListResponse,
     RegistrationEmailCodeSendBody,
@@ -43,8 +54,10 @@ from security import (
     create_access_token,
     create_email_code_challenge_token,
     create_email_registration_verified_token,
+    create_password_reset_token,
     create_student_id_verify_token,
     decode_email_registration_verified_token,
+    decode_password_reset_token,
     decode_student_id_verify_token,
     hash_password,
     normalize_registration_email,
@@ -55,6 +68,83 @@ from security import (
 from upload_storage import delete_uploaded_file, save_profile_image, save_student_id_card
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def _user_may_receive_password_reset(user: User) -> bool:
+    """로그인 가능한 상태에 가까운 회원만 재설정 메일 허용."""
+    if user.account_status != "ACTIVE":
+        return False
+    if user.is_admin:
+        return True
+    return user.registration_status == "APPROVED"
+
+
+@router.post("/password-reset/request", response_model=PasswordResetRequestResponse)
+def request_password_reset(body: PasswordResetRequestBody, db: Session = Depends(get_db)) -> PasswordResetRequestResponse:
+    """아이디·이메일이 일치하고 재설정 가능한 계정이면 5분 유효 재설정 JWT 링크 메일 발송.
+    일치하지 않아도 응답 문구는 동일(계정·이메일 노출 방지).
+    """
+    uid = body.user_id.strip()
+    email_norm = normalize_registration_email(str(body.email))
+    user = db.get(User, uid) if uid else None
+    matched = (
+        user is not None
+        and normalize_registration_email(user.email) == email_norm
+        and _user_may_receive_password_reset(user)
+    )
+    if matched:
+        tok = create_password_reset_token(user.user_id)
+        reset_url = f"{settings.app_public_url.rstrip('/')}/password-reset?token={quote(tok, safe='')}"
+        subject, text_body, html_body = build_password_reset_email(reset_url, user.user_id, valid_minutes=5)
+        send_email(user.email, subject, text_body, html_body=html_body)
+    return PasswordResetRequestResponse()
+
+
+@router.get("/password-reset/status", response_model=PasswordResetStatusResponse)
+def password_reset_token_status(
+    token: str = Query(..., min_length=10),
+    db: Session = Depends(get_db),
+) -> PasswordResetStatusResponse:
+    """재설정 페이지에서 토큰 유효 여부 확인(만료·5분 초과는 JWT exp로 판별)."""
+    try:
+        uid = decode_password_reset_token(token)
+    except ValueError as e:
+        return PasswordResetStatusResponse(valid=False, detail=str(e))
+    user = db.get(User, uid)
+    if user is None:
+        return PasswordResetStatusResponse(valid=False, detail="사용자를 찾을 수 없습니다.")
+    if not _user_may_receive_password_reset(user):
+        return PasswordResetStatusResponse(
+            valid=False,
+            detail="이 계정은 비밀번호 재설정을 진행할 수 없습니다. 관리자에게 문의해 주세요.",
+        )
+    return PasswordResetStatusResponse(valid=True, detail=None)
+
+
+@router.post("/password-reset/confirm", response_model=PasswordResetConfirmResponse)
+def confirm_password_reset(
+    body: PasswordResetConfirmBody,
+    db: Session = Depends(get_db),
+) -> PasswordResetConfirmResponse:
+    try:
+        uid = decode_password_reset_token(body.token.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    user = db.get(User, uid)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="재설정 링크가 유효하지 않습니다. 비밀번호 찾기를 다시 요청해 주세요.",
+        )
+    if not _user_may_receive_password_reset(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="이 계정은 비밀번호 재설정을 진행할 수 없습니다.",
+        )
+    user.password = hash_password(body.new_password)
+    user.token_version = int(user.token_version) + 1
+    db.commit()
+    return PasswordResetConfirmResponse()
 
 
 @router.get("/schools", response_model=PublicSchoolListResponse)
