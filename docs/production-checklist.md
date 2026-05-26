@@ -10,7 +10,8 @@
   - [ ] `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
   - [ ] `JWT_SECRET` = 32바이트 이상 무작위 문자열
     - 생성 예: `python -c "import secrets;print(secrets.token_urlsafe(48))"`
-  - [ ] `APP_PUBLIC_URL=https://hanuri.example.com` (가입 메일 등 외부 링크에 사용)
+  - [ ] `APP_PUBLIC_URL=https://hanuri.example.com` (가입 거절·**비밀번호 재설정** 등 메일 속 링크 베이스)
+    - OS 환경 변수에 먼저 `APP_PUBLIC_URL`이 있으면 `.env`가 반영되지 않을 수 있음(Windows 사용자 변수 등 확인)
   - [ ] `SMTP_*` (회원가입 인증/거절 메일을 쓰는 경우)
 - [ ] `main.py`의 CORS 와일드카드를 운영 도메인으로 좁힘 (`allow_origins=["https://hanuri.example.com"]`)
 - [ ] DB 스키마 최신화 (`database/main.sql` 또는 `database/migrations/*.sql`)
@@ -73,6 +74,7 @@
 - [ ] `https://hanuri.example.com/` → 홈 피드 로드
 - [ ] 회원가입 → 학생증 OCR → 이메일 인증 → 관리자 승인 흐름 정상
 - [ ] 회원가입 메일 본문의 링크가 `https://hanuri.example.com/...` 로 표시
+- [ ] **비밀번호 찾기**로 받은 메일의 재설정 링크가 공개 도메인을 가리키는지 확인
 - [ ] 로그인 후 글 작성·이미지 업로드 → 이미지가 `https://.../uploads/...`로 표시
 - [ ] 두 기기에서 동시에 로그인 → 한 쪽이 자동 로그아웃 안내(세션 무효화)
 - [ ] 채팅에서 메시지 전송 → 상대 기기에 **실시간(WebSocket)** 도착

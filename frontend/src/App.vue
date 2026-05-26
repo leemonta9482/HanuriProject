@@ -5,6 +5,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
 import { getWsUrl, notifySessionInvalid, uploadsPublicUrl } from '@/api/client'
 import hanuriMark from '@/assets/hanuri-mark.png'
+import SiteFooter from '@/components/SiteFooter.vue'
 import { useNotificationInbox } from '@/composables/useNotificationInbox'
 import { useAuthStore } from '@/stores/auth'
 
@@ -43,6 +44,9 @@ const isActivePostWriteWanted = computed(
 )
 
 const searchQuery = ref('')
+
+/** 관리자 화면: 본문과 푸터 사이 여백 */
+const isAdminSection = computed(() => route.path.startsWith('/admin'))
 
 const sessionToast = ref({ show: false, message: '' })
 /** 자발적 로그아웃 안내 — 잠시 후 자동 숨김 */
@@ -363,11 +367,12 @@ watch(
 </script>
 
 <template>
-  <div class="layout">
-    <header
-      class="header"
-      :class="[auth.isLoggedIn ? 'header--with-search' : 'header--no-search']"
-    >
+  <div class="layout" :class="{ 'layout--admin-footer-gap': isAdminSection }">
+    <div class="layout-shell">
+      <header
+        class="header"
+        :class="[auth.isLoggedIn ? 'header--with-search' : 'header--no-search']"
+      >
       <div class="header-brand">
         <RouterLink to="/" class="brand" aria-label="우리 대학 하누리, 홈으로 이동">
           <img class="brand-logo" :src="hanuriMark" alt="" width="34" height="34" />
@@ -621,9 +626,13 @@ watch(
         </template>
       </nav>
     </header>
-    <main class="main">
-      <RouterView />
-    </main>
+    <div class="layout-page">
+      <main class="main">
+        <RouterView />
+      </main>
+    </div>
+    </div>
+    <SiteFooter />
     <Teleport to="body">
       <div v-if="sessionToast.show" class="session-toast" role="alert">
         {{ sessionToast.message }}
@@ -656,6 +665,46 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+/* 헤더·본문만 최대폭 중앙 — 푸터는 레이아웃 밖에서 뷰 전체 폭 사용 */
+.layout-shell {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--hanuri-page-max-width);
+  margin-inline: auto;
+  padding: 1.5rem;
+  padding-left: max(2rem, env(safe-area-inset-left, 0px));
+}
+
+.layout--admin-footer-gap .layout-shell {
+  margin-bottom: clamp(3.25rem, 8vw, 5.5rem);
+}
+
+@media (max-width: 480px) {
+  .layout-shell {
+    padding-left: max(2rem, 6.5vw, env(safe-area-inset-left, 0px));
+    padding-right: max(1.75rem, 6vw, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (min-width: 1024px) {
+  .layout-shell {
+    padding: 2rem;
+    padding-left: max(2.5rem, env(safe-area-inset-left, 0px));
+  }
+}
+
+/* 본문: 뷰포트가 길 때 flex:1 으로 푸터를 아래로 밀 준비 */
+.layout-page {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .header {
@@ -1570,9 +1619,10 @@ watch(
 }
 
 .main {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .session-toast,

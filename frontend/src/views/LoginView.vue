@@ -17,6 +17,9 @@ onMounted(() => {
   if (route.query.registered === '1' || route.query.pending === '1') {
     error.value = ''
   }
+  if (route.query.reset === '1') {
+    error.value = ''
+  }
 })
 
 function doLogoutOnly() {
@@ -66,6 +69,9 @@ async function onSubmit() {
       <p v-else-if="route.query.registered === '1'" class="hint success">
         회원가입이 완료되었습니다. 로그인해 주세요.
       </p>
+      <p v-else-if="route.query.reset === '1'" class="hint success">
+        비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.
+      </p>
       <form class="form" @submit.prevent="onSubmit">
         <label class="field">
           <span class="label">아이디</span>
@@ -95,6 +101,9 @@ async function onSubmit() {
           {{ loading ? '처리 중…' : '로그인' }}
         </button>
       </form>
+      <p class="footer-row">
+        <RouterLink class="link" to="/forgot-password">비밀번호 찾기</RouterLink>
+      </p>
       <p class="footer">
         계정이 없으신가요?
         <RouterLink class="link" to="/register">회원가입</RouterLink>
@@ -197,6 +206,12 @@ async function onSubmit() {
 .submit:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.footer-row {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.9rem;
 }
 
 .footer {

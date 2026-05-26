@@ -58,9 +58,17 @@ FastAPI 기반의 백엔드와 Vue.js 프론트엔드를 사용합니다.
 | `/profile` | 프로필·비밀번호 수정 |
 | `/chat` | 채팅 목록·대화 |
 | `/login`, `/register` | 로그인·회원가입 |
+| `/forgot-password` | 비밀번호 찾기 |
+| `/password-reset` | 재설정 링크로 비밀번호 변경 |
+| `/legal`, `/legal/:doc` | 약관·정책 전문 |
 | `/admin/*` | 관리자(회원·게시글·신고 등) — 관리자 권한 필요 |
 
 헤더의 **검색**은 홈 피드 API의 검색 파라미터와 연동됩니다.
+
+### 메일 속 웹 링크 (`APP_PUBLIC_URL`)
+
+가입 거절 안내·비밀번호 재설정 등 **사용자가 여는 URL의 베이스**는 `backend/.env`의 **`APP_PUBLIC_URL`** 입니다. 운영에서는 실제 서비스 도메인과 맞춥니다.  
+Windows 등에서 **OS 환경 변수에 같은 이름이 먼저 있으면** `python-dotenv` 기본 동작상 **`.env` 값이 적용되지 않을 수 있습니다.**
 
 ---
 
@@ -119,7 +127,7 @@ npm run build
 npm run preview -- --host 127.0.0.1 --port 80
 ```
 
-UI만 빠르게 수정할 때는 `npm run dev`(보통 5173)를 쓸 수 있습니다. 상세는 `frontend/README.md`와 `frontend/src/api/client.ts`를 참고하세요.
+UI만 빠르게 수정할 때는 `npm run dev`를 쓸 수 있습니다. 상세는 `frontend/README.md`와 `frontend/src/api/client.ts`를 참고하세요.
 
 ---
 

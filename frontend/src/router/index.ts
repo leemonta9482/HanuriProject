@@ -77,9 +77,28 @@ const router = createRouter({
       component: () => import('../views/LoginView.vue'),
     },
     {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../views/ForgotPasswordView.vue'),
+    },
+    {
+      path: '/password-reset',
+      name: 'password-reset',
+      component: () => import('../views/PasswordResetView.vue'),
+    },
+    {
       path: '/register',
       name: 'register',
       component: () => import('../views/RegisterView.vue'),
+    },
+    {
+      path: '/legal',
+      redirect: '/legal/tos',
+    },
+    {
+      path: '/legal/:doc',
+      name: 'legal-doc',
+      component: () => import('../views/LegalView.vue'),
     },
     {
       path: '/admin',

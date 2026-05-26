@@ -1,5 +1,6 @@
 from datetime import datetime
 from math import ceil
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -59,6 +60,15 @@ def list_users(
     user_id: str | None = Query(None, description="아이디 검색(부분일치)"),
     name: str | None = Query(None, description="이름 검색(부분일치)"),
     school_name: str | None = Query(None, description="학교명 검색(부분일치)"),
+    approval: Literal["all", "approved", "unapproved"] = Query(
+        "all",
+        description="가입 승인: all=전체, approved=승인됨만, unapproved=승인 미완료(대기·거절 등)",
+    ),
+    student_verified_filter: Literal["all", "verified", "unverified"] = Query(
+        "all",
+        description="학생 인증: all=전체, verified=완료만, unverified=미완료만",
+        alias="student_verified",
+    ),
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> AdminUserListResponse:
@@ -70,6 +80,14 @@ def list_users(
         filters.append(User.name.like(f"%{name.strip()}%"))
     if school_name:
         filters.append(User.school_name.like(f"%{school_name.strip()}%"))
+    if approval == "approved":
+        filters.append(User.registration_status == "APPROVED")
+    elif approval == "unapproved":
+        filters.append(User.registration_status != "APPROVED")
+    if student_verified_filter == "verified":
+        filters.append(User.student_verified.is_(True))
+    elif student_verified_filter == "unverified":
+        filters.append(User.student_verified.is_(False))
     if filters:
         stmt = stmt.where(*filters)
 

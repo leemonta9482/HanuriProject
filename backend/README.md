@@ -42,7 +42,8 @@ uv sync
 
 ### 4. 환경 변수·데이터베이스
 
-- **`backend/.env`** — `config.py`가 같은 폴더의 `.env`를 `python-dotenv`로 로드한 뒤 **Pydantic Settings**로 읽습니다. Git에는 커밋하지 마세요(`backend/.gitignore`에 `.env` 포함). 처음에는 `backend/.env.example`을 복사해 `backend/.env`를 만든 뒤 값을 채웁니다.
+- **`backend/.env`** — `config.py`가 같은 폴더의 `.env`를 `python-dotenv`로 로드한 뒤 **Pydantic Settings**로 읽습니다. Git에는 커밋하지 마세요(`backend/.gitignore`에 `.env` 포함). 처음에는 `backend/.env.example`을 복사해 `backend/.env`를 만든 뒤 값을 채웁니다.  
+  - `load_dotenv(..., override=False)` 가 기본이라, **Windows 등 OS 환경 변수에 이미 같은 키**(`APP_PUBLIC_URL` 등)가 있으면 **그 값이 우선**하고 `.env`는 덮어쓰지 않을 수 있습니다.
 - **민감 정보(DB 비밀번호, JWT 시크릿, SMTP 비밀번호 등)** 는 코드에 두지 않고 `.env`에만 둡니다. 예시 키:
   - MySQL: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
   - JWT: `JWT_SECRET` (운영에서는 긴 무작위 문자열 권장)
@@ -115,9 +116,9 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `models.py`          | ORM 엔티티 (`User`, **`School`**, `Board`, `WantedPost`, `Chat` 등)                                      |
 | `schemas.py`         | 요청/응답 Pydantic 모델                                                              |
 | `deps.py`            | `get_current_user`, `require_admin` 등 공통 의존성                                   |
-| `security.py`        | JWT 발급·검증, 비밀번호 해시                                                             |
+| `security.py`        | JWT 발급·검증, 비밀번호 해시, **재설정 전용 5분 JWT** (`create_password_reset_token` / `decode_password_reset_token`) |
 | `upload_storage.py`  | 학생증·프로필·판매 이미지 저장·삭제 규칙                                                        |
-| `email_utils.py`       | SMTP 메일 발송(`send_email`), 가입 거절 안내 메일 문구 빌더 (`build_registration_rejected_email`) |
+| `email_utils.py`       | SMTP 메일 발송(`send_email`)·가입 거절·비밀번호 재설정 안내 메일 |
 | `ocr.py`               | PaddleOCR로 학생증 OCR, 이름·학교명·학번 포함 여부 검사 (`routers/auth` 학생증 인증과 연동)            |
 | `realtime_events.py` | **WebSocket** 실시간 푸시용 인메모리 연결·대기 큐 (`publish_event` → 사용자별 브로드캐스트, 단일 프로세스 전제) |
 | `routers/`           | 도메인별 API (`auth`, `admin`, `boards`, `feed`, `wanted`, `chat`, `ws`)           |
@@ -130,6 +131,10 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
   - `GET /api/auth/user-id-available` — 회원가입 전 아이디 사용 가능 여부 (`user_id` 쿼리)
   - `POST /api/auth/registration-email/send` — 회원가입 이메일로 4자리 인증번호 발송·챌린지 JWT 발급(JSON 본문 `email`)
   - `POST /api/auth/registration-email/verify` — 인증번호 확인 후 회원가입 제출용 이메일 JWT 발급(JSON 본문 `challenge_token`, `code`)
+  - **비밀번호 찾기** — 아이디·이메일 일치 시에만 5분 유효 JWT가 담긴 링크 발송(실패해도 응답 문구는 동일·스캐닝 완화).
+    - `POST /api/auth/password-reset/request` — 본문 `user_id`, `email`
+    - `GET /api/auth/password-reset/status?token=` — 토큰·계정 가능 여부 확인(프론트 재설정 페이지)
+    - `POST /api/auth/password-reset/confirm` — 본문 `token`, `new_password`(8자 이상) — 성공 시 `token_version` 증가로 기존 세션 무효
 - **boards** — 판매글 CRUD, 이미지, 찜, 구매 요청, 신고
 - **feed** — 동일 학교 기준 통합 피드(판매+구매 희망), 검색·정렬
 - **wanted** — 구매 희망글 CRUD
@@ -153,7 +158,8 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | 학교 마스터 | `School` 엔티티·`GET /api/admin/schools` 등 CRUD, 공개 목록 `GET /api/auth/schools` |
 | 회원가입 | 등록·노출된 학교만 선택 가능, OCR로 이름·학교명·학번 일치 검증, 동일 학교+학번 기가입 시 차단, **이메일 4자리 인증번호**(`POST /api/auth/registration-email/*`, SMTP 미설정 시 콘솔에만 코드 출력) 후 가입 제출 |
 | 관리자 회원 | 승인·계정 상태 변경; **거절**은 메일 발송 성공 시에만 DB에서 사용자 삭제; **계정 삭제**는 메일 없이 삭제 |
-| 메일 | Gmail 등 SMTP는 `backend/.env`의 `SMTP_*` 설정. 미설정·실패 시 거절 플로우에서 삭제 생략(`502`) |
+| 메일 | `SMTP_*` 설정. 거절 플로우에서 발송 실패 시 삭제 생략(`502`). 비밀번호 재설정은 SMTP 미설정 시 콘솔에만 기록(dry-run) |
+| `APP_PUBLIC_URL` | 메일 안내 등에 포함되는 공개 웹 베이스 URL. 운영 도메인과 맞춤 |
 
 ---
 

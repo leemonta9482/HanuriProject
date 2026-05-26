@@ -62,7 +62,7 @@ cd frontend
 npm run dev
 ```
 
-기본은 **포트 5173**(`vite.config.ts`의 `server`). API는 같은 PC에서 보통 **8000**으로 맞춥니다. 필요 시 `.env.development`의 `VITE_API_BASE_URL`을 조정합니다.
+기본 포트 등은 **`vite.config.ts`** 를 참고합니다. Windows 등에서 특정 포트는 **관리자 권한**이 필요할 수 있습니다. API는 같은 PC에서 보통 **8000**으로 맞춥니다. 필요 시 `.env.development`의 `VITE_API_BASE_URL`을 조정합니다.
 
 ---
 
@@ -104,4 +104,4 @@ npm run dev
 
 ---
 
-`vite.config.ts`의 `preview` 기본값은 `127.0.0.1:80`에 맞춰 두었습니다. 명령줄에서 `--port`를 바꾸면 그 값이 우선합니다.
+`vite.config.ts`의 `preview` 설정과 명령줄 인자가 맞는지 확인합니다. `--port`를 바꾸면 그 값이 우선입니다.

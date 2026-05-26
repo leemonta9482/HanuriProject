@@ -23,7 +23,7 @@
        ├── /api/*       → http://127.0.0.1:8000  (FastAPI)
        ├── /uploads/*   → http://127.0.0.1:8000  (정적 업로드)
        ├── /api/ws      → http://127.0.0.1:8000  (WebSocket)
-       └── /            → http://127.0.0.1:4173  (Vue 빌드 결과 preview)
+       └── /            → http://127.0.0.1:80 또는 :4173 등 (Vue preview·정적 서빙 포트는 `config.yml`과 맞춤)
 ```
 
 - 도메인은 **Cafe24**에서 구매했지만 DNS 운영은 **Cloudflare**로 위임합니다(네임서버 변경).

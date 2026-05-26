@@ -54,6 +54,14 @@ class LoginUserInfo(BaseModel):
     profile_image_path: str | None = None
 
 
+class LoginResponse(BaseModel):
+    """POST /api/auth/login 성공 시 액세스 토큰과 사용자 정보."""
+
+    access_token: str
+    token_type: str = "bearer"
+    user: LoginUserInfo
+
+
 class UserProfileOut(BaseModel):
     user_id: str
     name: str
@@ -70,10 +78,32 @@ class PasswordChangeBody(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: LoginUserInfo
+class PasswordResetRequestBody(BaseModel):
+    user_id: str = Field(..., min_length=1, max_length=50)
+    email: EmailStr
+
+
+class PasswordResetRequestResponse(BaseModel):
+    """성공 여부와 관계없이 동일 문구로 응답(계정 존재·이메일 일치 노출 방지)."""
+
+    message: str = (
+        "요청을 접수했습니다. 입력하신 이메일이 계정 정보와 일치하면 비밀번호 재설정 안내 메일이 발송됩니다."
+    )
+
+
+class PasswordResetStatusResponse(BaseModel):
+    valid: bool
+    detail: str | None = None
+
+
+class PasswordResetConfirmBody(BaseModel):
+    token: str = Field(..., min_length=10)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class PasswordResetConfirmResponse(BaseModel):
+    ok: bool = True
+    message: str = "비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요."
 
 
 class UserNotificationOut(BaseModel):

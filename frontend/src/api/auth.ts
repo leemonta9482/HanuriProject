@@ -2,6 +2,9 @@ import type {
   LoginPayload,
   LoginResponse,
   LoginUserInfo,
+  PasswordResetConfirmResponse,
+  PasswordResetRequestResponse,
+  PasswordResetStatusResponse,
   PublicSchoolListResponse,
   RegisterResponse,
   RegisterWithStudentCardPayload,
@@ -158,4 +161,37 @@ export async function changePassword(currentPassword: string, newPassword: strin
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
+}
+
+export async function requestPasswordReset(
+  userId: string,
+  email: string,
+): Promise<PasswordResetRequestResponse> {
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/password-reset/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId.trim(), email: email.trim() }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as PasswordResetRequestResponse
+}
+
+export async function getPasswordResetStatus(token: string): Promise<PasswordResetStatusResponse> {
+  const q = new URLSearchParams({ token: token.trim() })
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/password-reset/status?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as PasswordResetStatusResponse
+}
+
+export async function confirmPasswordReset(
+  token: string,
+  newPassword: string,
+): Promise<PasswordResetConfirmResponse> {
+  const res = await apiFetch(`${getBaseUrl()}/api/auth/password-reset/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token.trim(), new_password: newPassword }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as PasswordResetConfirmResponse
 }
