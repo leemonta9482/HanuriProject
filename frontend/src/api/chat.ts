@@ -92,3 +92,18 @@ export async function unblockUser(blockedUserId: string): Promise<void> {
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
 }
+
+export function getWsChatUrl(roomId: number): string {
+  const http = getBaseUrl()
+  try {
+    const u = new URL(http)
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
+    u.pathname = `/api/ws/chat/${roomId}`
+    u.search = ''
+    u.hash = ''
+    return u.toString().replace(/\/$/, '')
+  } catch {
+    const base = http.replace(/^http/i, 'ws')
+    return `${base.replace(/\/$/, '')}/api/ws/chat/${roomId}`
+  }
+}
