@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from realtime_events import process_pending_loop
-from routers import admin, auth, boards, chat, feed, wanted, ws
+from routers import admin, auth, boards, chat, feed, wanted, ws, ws_chat
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app.include_router(feed.router)
 app.include_router(wanted.router)
 app.include_router(chat.router)
 app.include_router(ws.router)
+app.include_router(ws_chat.router)
 
 uploads_dir = settings.upload_dir
 uploads_dir.mkdir(parents=True, exist_ok=True)
