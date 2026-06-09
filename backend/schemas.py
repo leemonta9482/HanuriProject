@@ -251,6 +251,27 @@ class AdminBoardUpdate(BaseModel):
     trade_type: Literal["DIRECT", "DELIVERY", "BOTH"] | None = None
 
 
+class AdminWantedOut(BaseModel):
+    wanted_id: int
+    user_id: str
+    title: str
+    description: str | None = None
+    max_price: int | None = None
+    preferred_location: str | None = None
+    created_at: object | None = None
+    updated_at: object | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class AdminWantedListResponse(BaseModel):
+    items: list[AdminWantedOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
 class AdminReportOut(BaseModel):
     report_id: int
     board_id: int

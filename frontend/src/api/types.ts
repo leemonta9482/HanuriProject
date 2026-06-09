@@ -184,6 +184,25 @@ export interface AdminBoardListResponse {
   pages: number
 }
 
+export interface AdminWanted {
+  wanted_id: number
+  user_id: string
+  title: string
+  description?: string | null
+  max_price?: number | null
+  preferred_location?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface AdminWantedListResponse {
+  items: AdminWanted[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
 export interface AdminBoardUpdatePayload {
   title?: string
   price?: number

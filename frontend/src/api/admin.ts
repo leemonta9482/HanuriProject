@@ -12,6 +12,8 @@ import type {
   AdminUserListResponse,
   AdminUserPatchResult,
   AdminUserUpdatePayload,
+  AdminWanted,
+  AdminWantedListResponse,
   School,
 } from './types'
 
@@ -89,6 +91,31 @@ export async function patchAdminBoard(
 
 export async function deleteAdminBoard(boardId: number): Promise<void> {
   const res = await apiFetch(`${getBaseUrl()}/api/admin/boards/${boardId}`, {
+    method: 'DELETE',
+    headers: authHeadersJson(),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+}
+
+export async function fetchAdminWanted(
+  page: number,
+  pageSize: number,
+  filters?: { wanted_id?: number; title?: string; user_id?: string; author_name?: string },
+): Promise<AdminWantedListResponse> {
+  const q = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  if (typeof filters?.wanted_id === 'number') q.set('wanted_id', String(filters.wanted_id))
+  if (filters?.title?.trim()) q.set('title', filters.title.trim())
+  if (filters?.user_id?.trim()) q.set('user_id', filters.user_id.trim())
+  if (filters?.author_name?.trim()) q.set('author_name', filters.author_name.trim())
+  const res = await apiFetch(`${getBaseUrl()}/api/admin/wanted?${q}`, {
+    headers: authHeadersJson(),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as AdminWantedListResponse
+}
+
+export async function deleteAdminWanted(wantedId: number): Promise<void> {
+  const res = await apiFetch(`${getBaseUrl()}/api/admin/wanted/${wantedId}`, {
     method: 'DELETE',
     headers: authHeadersJson(),
   })
