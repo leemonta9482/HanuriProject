@@ -212,6 +212,11 @@ def open_chat_room(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="차단되었습니다. 이 판매자와는 대화를 시작할 수 없습니다.",
         )
+    if _peer_has_blocked_initiator(db, user.user_id, peer_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="차단한 상대방과는 대화를 시작할 수 없습니다.",
+        )
 
     existing = db.scalar(
         select(ChatRoom).where(
@@ -226,6 +231,11 @@ def open_chat_room(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="차단되었습니다. 이 판매자와는 대화를 시작할 수 없습니다.",
+            )
+        if _peer_has_blocked_initiator(db, user.user_id, existing.peer_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="차단한 상대방과는 대화를 시작할 수 없습니다.",
             )
         if existing.deleted_at_initiator is not None:
             existing.deleted_at_initiator = None
@@ -327,6 +337,16 @@ def create_block(
             detail="이미 차단한 사용자입니다.",
         ) from None
     db.refresh(ub)
+    room_ids = db.execute(
+        select(ChatRoom.room_id).where(
+            ChatRoom.peer_id == user.user_id,
+            ChatRoom.initiator_id == blocked,
+        )
+    ).scalars().all()
+    publish_event(
+        blocked,
+        {"type": "chat_blocked", "blocker_id": user.user_id, "room_ids": list(room_ids)},
+    )
     return UserBlockEntryOut(
         blocked_user_id=blocked,
         blocked_name=((tgt.name or "").strip() or blocked),
@@ -350,6 +370,16 @@ def delete_block(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="차단 목록에 없습니다.")
     db.delete(row)
     db.commit()
+    room_ids = db.execute(
+        select(ChatRoom.room_id).where(
+            ChatRoom.peer_id == user.user_id,
+            ChatRoom.initiator_id == blocked_user_id,
+        )
+    ).scalars().all()
+    publish_event(
+        blocked_user_id,
+        {"type": "chat_unblocked", "blocker_id": user.user_id, "room_ids": list(room_ids)},
+    )
 
 
 @router.post("/rooms/{room_id}/close")

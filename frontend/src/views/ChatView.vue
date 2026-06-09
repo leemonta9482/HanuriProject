@@ -10,7 +10,7 @@ import {
   fetchBlockedUsers,
   fetchChatMessages,
   fetchChatRooms,
-  sendChatMessage,
+  getWsChatUrl,
   unblockUser,
 } from '@/api/chat'
 import { uploadsPublicUrl } from '@/api/client'
@@ -33,7 +33,13 @@ const roomClosure = ref<ChatRoomClosed | null>(null)
 const blockedUsers = ref<BlockedUserEntry[]>([])
 const blockPanelOpen = ref(false)
 const loadingBlocks = ref(false)
-let pollTimer: ReturnType<typeof setInterval> | null = null
+
+let chatWs: WebSocket | null = null
+let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null
+let wsReconnectCount = 0
+const WS_MAX_RECONNECT = 5
+let wsIntentionalClose = false
+let wsCurrentRoomId: number | null = null
 
 const msgScrollRef = ref<HTMLElement | null>(null)
 
@@ -149,11 +155,95 @@ async function onUnblockPeer(blockedUserId: string) {
   }
 }
 
-function stopPoll() {
-  if (pollTimer != null) {
-    clearInterval(pollTimer)
-    pollTimer = null
+function disconnectChatWs() {
+  wsIntentionalClose = true
+  if (wsReconnectTimer != null) {
+    clearTimeout(wsReconnectTimer)
+    wsReconnectTimer = null
   }
+  if (chatWs != null) {
+    chatWs.close()
+    chatWs = null
+  }
+  wsReconnectCount = 0
+  wsCurrentRoomId = null
+}
+
+function _openChatWs(roomId: number) {
+  const token = localStorage.getItem('hanuri_token')
+  if (!token) return
+  const url = `${getWsChatUrl(roomId)}?token=${encodeURIComponent(token)}`
+  const ws = new WebSocket(url)
+  chatWs = ws
+
+  ws.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(String(ev.data)) as Record<string, unknown>
+      if (data.type === 'connected') {
+        wsReconnectCount = 0
+        if (messages.value.length > 0) {
+          const lastId = messages.value[messages.value.length - 1].message_id
+          void fetchChatMessages(roomId, lastId).then(({ messages: more, room_closed }) => {
+            if (more.length) messages.value = [...messages.value, ...more]
+            if (room_closed) {
+              roomClosure.value = room_closed
+              disconnectChatWs()
+              void loadRooms()
+            }
+          }).catch(() => {})
+        }
+      } else if (data.type === 'message') {
+        const msg = data as unknown as ChatMessage
+        if (!messages.value.some((m) => m.message_id === msg.message_id)) {
+          messages.value = [...messages.value, msg]
+        }
+        void loadRooms()
+      } else if (data.type === 'room_closed') {
+        roomClosure.value = { notice_text: '상대방이 대화를 종료했습니다.' }
+        disconnectChatWs()
+        void loadRooms()
+      } else if (data.type === 'error') {
+        const detail = typeof data.detail === 'string' ? data.detail : ''
+        if (detail === 'room_closed') {
+          roomClosure.value = { notice_text: '종료된 채팅방입니다.' }
+          disconnectChatWs()
+        } else if (detail === 'blocked') {
+          error.value = '차단된 대화방입니다. 메시지를 보낼 수 없습니다.'
+        } else if (detail !== 'empty_message') {
+          error.value = detail || '채팅 오류가 발생했습니다.'
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  ws.onclose = () => {
+    if (wsIntentionalClose || wsCurrentRoomId !== roomId) return
+    if (wsReconnectCount >= WS_MAX_RECONNECT) {
+      error.value = '연결이 끊겼습니다. 페이지를 새로고침해 주세요.'
+      return
+    }
+    const delay = Math.min(1000 * Math.pow(2, wsReconnectCount), 30000)
+    wsReconnectCount++
+    wsReconnectTimer = setTimeout(() => {
+      if (!wsIntentionalClose && wsCurrentRoomId === roomId) {
+        _openChatWs(roomId)
+      }
+    }, delay)
+  }
+
+  ws.onerror = () => {
+    // onclose handles reconnection
+  }
+}
+
+function connectChatWs(roomId: number) {
+  disconnectChatWs()
+  wsIntentionalClose = false
+  wsCurrentRoomId = roomId
+  wsReconnectCount = 0
+  _openChatWs(roomId)
 }
 
 async function loadMessages() {
@@ -163,7 +253,7 @@ async function loadMessages() {
     const { messages: list, room_closed } = await fetchChatMessages(selectedRoomId.value)
     messages.value = list
     roomClosure.value = room_closed
-    if (room_closed) stopPoll()
+    if (room_closed) disconnectChatWs()
   } catch (e) {
     error.value = e instanceof Error ? e.message : '메시지를 불러오지 못했습니다.'
     messages.value = []
@@ -173,41 +263,13 @@ async function loadMessages() {
   }
 }
 
-async function pollNew() {
-  if (selectedRoomId.value == null) return
-  if (selectedRoom.value?.closed_at) return
-  if (messages.value.length === 0) {
-    await loadMessages()
-    return
-  }
-  const last = messages.value[messages.value.length - 1]
-  if (!last) return
-  try {
-    const { messages: more, room_closed } = await fetchChatMessages(selectedRoomId.value, last.message_id)
-    if (more.length) messages.value = [...messages.value, ...more]
-    if (room_closed) {
-      roomClosure.value = room_closed
-      stopPoll()
-      void loadRooms()
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-function startPoll() {
-  stopPoll()
-  if (selectedRoom.value?.closed_at) return
-  pollTimer = window.setInterval(() => void pollNew(), 15000)
-}
-
 async function selectRoom(id: number) {
   selectedRoomId.value = id
   void router.replace({ name: 'chat', query: { room: String(id) } })
   await loadMessages()
-  stopPoll()
   const r = rooms.value.find((x) => x.room_id === id)
-  if (r && !r.closed_at) startPoll()
+  if (r && !r.closed_at) connectChatWs(id)
+  else disconnectChatWs()
 }
 
 async function onCloseChat() {
@@ -217,7 +279,7 @@ async function onCloseChat() {
   try {
     const result = await closeChatRoom(rid)
     error.value = ''
-    stopPoll()
+    disconnectChatWs()
     if (result.deleted) {
       selectedRoomId.value = null
       messages.value = []
@@ -246,7 +308,7 @@ async function onDeleteRoom() {
   try {
     await deleteChatRoom(rid)
     error.value = ''
-    stopPoll()
+    disconnectChatWs()
     selectedRoomId.value = null
     messages.value = []
     roomClosure.value = null
@@ -257,19 +319,17 @@ async function onDeleteRoom() {
   }
 }
 
-async function onSend() {
+function onSend() {
   const t = input.value.trim()
   if (!t || selectedRoomId.value == null || selectedRoom.value?.closed_at) return
   if (selectedRoom.value?.i_am_blocked_by_peer) return
   if (selectedRoom.value?.i_am_peer && selectedRoom.value?.initiator_blocked_by_me) return
-  try {
-    const m = await sendChatMessage(selectedRoomId.value, t)
-    input.value = ''
-    messages.value = [...messages.value, m]
-    void loadRooms()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '전송 실패'
+  if (!chatWs || chatWs.readyState !== WebSocket.OPEN) {
+    error.value = '연결 중입니다. 잠시 후 다시 시도해 주세요.'
+    return
   }
+  chatWs.send(JSON.stringify({ type: 'message', body: t }))
+  input.value = ''
 }
 
 function onHanuriLive(ev: Event) {
@@ -285,21 +345,33 @@ function onHanuriLive(ev: Event) {
     )
     if (selectedRoomId.value === rid) {
       roomClosure.value = { notice_text: '상대방이 대화를 종료했습니다.' }
-      stopPoll()
+      disconnectChatWs()
     }
     void loadRooms()
-    return
+  } else if (d.type === 'chat') {
+    // 현재 열려있지 않은 방(새 채팅방 포함)의 메시지 → 목록 갱신
+    if (d.room_id !== selectedRoomId.value) {
+      void loadRooms()
+    }
+  } else if (d.type === 'chat_blocked') {
+    const roomIds = Array.isArray(d.room_ids) ? (d.room_ids as number[]) : []
+    rooms.value = rooms.value.map((r) =>
+      roomIds.includes(r.room_id) ? { ...r, i_am_blocked_by_peer: true } : r,
+    )
+    if (selectedRoomId.value != null && roomIds.includes(selectedRoomId.value)) {
+      disconnectChatWs()
+    }
+  } else if (d.type === 'chat_unblocked') {
+    const roomIds = Array.isArray(d.room_ids) ? (d.room_ids as number[]) : []
+    void loadRooms().then(() => {
+      if (selectedRoomId.value != null && roomIds.includes(selectedRoomId.value)) {
+        const r = rooms.value.find((x) => x.room_id === selectedRoomId.value)
+        if (r && !r.closed_at && !r.i_am_blocked_by_peer) {
+          connectChatWs(selectedRoomId.value)
+        }
+      }
+    })
   }
-  if (d.type !== 'chat') return
-  const rid = d.room_id
-  if (typeof rid !== 'number' || rid !== selectedRoomId.value) return
-  const raw = d.message
-  if (!raw || typeof raw !== 'object') return
-  const msg = raw as ChatMessage
-  if (typeof msg.message_id !== 'number') return
-  if (messages.value.some((m) => m.message_id === msg.message_id)) return
-  messages.value = [...messages.value, msg]
-  void loadRooms()
 }
 
 onMounted(async () => {
@@ -311,7 +383,7 @@ onMounted(async () => {
     selectedRoomId.value = rid
     await loadMessages()
     const r = rooms.value.find((x) => x.room_id === rid)
-    if (r && !r.closed_at) startPoll()
+    if (r && !r.closed_at) connectChatWs(rid)
   }
 })
 
@@ -323,22 +395,22 @@ watch(
       selectedRoomId.value = null
       messages.value = []
       roomClosure.value = null
-      stopPoll()
+      disconnectChatWs()
       return
     }
     if (selectedRoomId.value !== rid) {
       selectedRoomId.value = rid
       await loadMessages()
-      stopPoll()
       const r = rooms.value.find((x) => x.room_id === rid)
-      if (r && !r.closed_at) startPoll()
+      if (r && !r.closed_at) connectChatWs(rid)
+      else disconnectChatWs()
     }
   },
 )
 
 onUnmounted(() => {
   window.removeEventListener('hanuri:live', onHanuriLive)
-  stopPoll()
+  disconnectChatWs()
 })
 
 watch([messages, roomClosure], () => scrollChatToBottom(), { deep: true })
@@ -781,8 +853,8 @@ watch(loadingMessages, (loading) => {
   margin: 0;
   padding: 0.65rem 1rem;
   font-size: 0.88rem;
-  background: hsla(200, 40%, 45%, 0.1);
-  color: hsl(200, 35%, 28%);
+  background: hsla(0, 60%, 50%, 0.08);
+  color: #a33030;
   border-bottom: 1px solid var(--color-border);
 }
 

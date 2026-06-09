@@ -60,3 +60,34 @@ async def process_pending_loop() -> None:
             continue
         uid, payload = item
         await _broadcast(uid, payload)
+
+
+_chat_connections: dict[int, list[WebSocket]] = defaultdict(list)
+
+
+def register_chat_ws(room_id: int, ws: WebSocket) -> None:
+    _chat_connections[room_id].append(ws)
+
+
+def unregister_chat_ws(room_id: int, ws: WebSocket) -> None:
+    lst = _chat_connections.get(room_id)
+    if not lst:
+        return
+    try:
+        lst.remove(ws)
+    except ValueError:
+        pass
+    if not lst:
+        _chat_connections.pop(room_id, None)
+
+
+async def broadcast_chat(room_id: int, payload: dict[str, Any]) -> None:
+    conns = list(_chat_connections.get(room_id, []))
+    dead: list[WebSocket] = []
+    for ws in conns:
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        unregister_chat_ws(room_id, ws)
