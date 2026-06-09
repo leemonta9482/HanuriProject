@@ -1,5 +1,29 @@
 # hanuri
 
+## 빠른 실행
+
+서버가 이미 설정된 상태에서 아래 명령어를 각각 다른 터미널에서 실행합니다.
+
+```bash
+# 1. 백엔드 (포트 8000)
+cd backend
+uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+```bash
+# 2. 프론트엔드 (포트 80)
+cd frontend
+npm run build
+npm run preview -- --host 127.0.0.1 --port 80
+```
+
+```bash
+# 3. Cloudflare 터널
+cloudflared tunnel run hanuri
+```
+
+---
+
 ## 소개
 
 이 프로젝트는 대학별 학생들의 중고물품을 사고팔 수 있는 웹입니다.  
