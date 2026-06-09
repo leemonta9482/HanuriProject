@@ -2,9 +2,12 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { deleteAdminBoard, fetchAdminBoards, patchAdminBoard } from '@/api/admin'
-import type { AdminBoard } from '@/api/types'
+import { deleteAdminBoard, deleteAdminWanted, fetchAdminBoards, fetchAdminWanted, patchAdminBoard } from '@/api/admin'
+import type { AdminBoard, AdminWanted } from '@/api/types'
 
+const postTab = ref<'sale' | 'wanted'>('sale')
+
+// ── 판매글 state ──
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -18,9 +21,37 @@ const statusDraft = reactive<Record<number, string>>({})
 const boardSearchBy = ref<'board_id' | 'title' | 'user_id' | 'author_name'>('title')
 const boardSearchQuery = ref('')
 
+// ── 구매희망 state ──
+const wPage = ref(1)
+const wPageSize = ref(10)
+const wTotal = ref(0)
+const wPages = ref(0)
+const wItems = ref<AdminWanted[]>([])
+const wLoading = ref(false)
+const wError = ref('')
+const wSavingId = ref<number | null>(null)
+
+const wSearchBy = ref<'wanted_id' | 'title' | 'user_id' | 'author_name'>('title')
+const wSearchQuery = ref('')
+
 const boardSearchPlaceholder = computed(() => {
   switch (boardSearchBy.value) {
     case 'board_id':
+      return '게시글 번호(숫자, 정확히 일치)'
+    case 'title':
+      return '제목 검색'
+    case 'user_id':
+      return '작성자 아이디'
+    case 'author_name':
+      return '작성자 이름(실명)'
+    default:
+      return ''
+  }
+})
+
+const wSearchPlaceholder = computed(() => {
+  switch (wSearchBy.value) {
+    case 'wanted_id':
       return '게시글 번호(숫자, 정확히 일치)'
     case 'title':
       return '제목 검색'
@@ -71,17 +102,66 @@ async function load() {
   }
 }
 
-onMounted(() => load())
+async function loadWanted() {
+  wError.value = ''
+  wLoading.value = true
+  try {
+    const q = wSearchQuery.value.trim()
+    const filters: {
+      wanted_id?: number
+      title?: string
+      user_id?: string
+      author_name?: string
+    } = {}
+    if (q) {
+      if (wSearchBy.value === 'wanted_id') {
+        const n = Number(q)
+        if (Number.isFinite(n)) filters.wanted_id = n
+      } else if (wSearchBy.value === 'title') {
+        filters.title = q
+      } else if (wSearchBy.value === 'user_id') {
+        filters.user_id = q
+      } else {
+        filters.author_name = q
+      }
+    }
+    const data = await fetchAdminWanted(wPage.value, wPageSize.value, filters)
+    wItems.value = data.items
+    wTotal.value = data.total
+    wPages.value = data.pages
+  } catch (e) {
+    wError.value = e instanceof Error ? e.message : '목록을 불러오지 못했습니다.'
+    wItems.value = []
+  } finally {
+    wLoading.value = false
+  }
+}
+
+onMounted(() => {
+  load()
+  loadWanted()
+})
 watch(page, () => load())
+watch(wPage, () => loadWanted())
 
 function onPageSizeChange() {
   page.value = 1
   load()
 }
 
+function onWPageSizeChange() {
+  wPage.value = 1
+  loadWanted()
+}
+
 function onSearch() {
   page.value = 1
   load()
+}
+
+function onWSearch() {
+  wPage.value = 1
+  loadWanted()
 }
 
 function onReset() {
@@ -90,12 +170,26 @@ function onReset() {
   onSearch()
 }
 
+function onWReset() {
+  wSearchBy.value = 'title'
+  wSearchQuery.value = ''
+  onWSearch()
+}
+
 function prevPage() {
   if (page.value > 1) page.value -= 1
 }
 
 function nextPage() {
   if (pages.value && page.value < pages.value) page.value += 1
+}
+
+function wPrevPage() {
+  if (wPage.value > 1) wPage.value -= 1
+}
+
+function wNextPage() {
+  if (wPages.value && wPage.value < wPages.value) wPage.value += 1
 }
 
 const statusLabel: Record<string, string> = {
@@ -136,6 +230,20 @@ async function removeBoard(b: AdminBoard) {
     savingId.value = null
   }
 }
+
+async function removeWanted(w: AdminWanted) {
+  if (!confirm(`구매희망 게시글 #${w.wanted_id} 「${w.title}」을(를) 삭제할까요?`)) return
+  wSavingId.value = w.wanted_id
+  wError.value = ''
+  try {
+    await deleteAdminWanted(w.wanted_id)
+    await loadWanted()
+  } catch (e) {
+    wError.value = e instanceof Error ? e.message : '삭제 실패'
+  } finally {
+    wSavingId.value = null
+  }
+}
 </script>
 
 <template>
@@ -152,141 +260,237 @@ async function removeBoard(b: AdminBoard) {
       <p class="sub">게시글을 조회·검색하고, 거래 상태를 변경하거나 삭제할 수 있습니다.</p>
     </header>
 
-    <div v-if="listError" class="banner err" role="alert">{{ listError }}</div>
-
-    <div class="search">
-      <label class="s search-combo">
-        <span>검색</span>
-        <div class="search-row">
-          <select v-model="boardSearchBy" class="select-theme" aria-label="검색 항목">
-            <option value="board_id">게시글 번호</option>
-            <option value="title">게시글 이름</option>
-            <option value="user_id">작성자 아이디</option>
-            <option value="author_name">작성자 이름</option>
-          </select>
-          <input
-            v-model="boardSearchQuery"
-            type="search"
-            class="search-input"
-            :placeholder="boardSearchPlaceholder"
-            maxlength="200"
-            autocomplete="off"
-            @keydown.enter.prevent="onSearch"
-          />
-        </div>
-      </label>
-      <div class="s search-actions">
-        <button type="button" class="btn ghost" :disabled="loading" @click="onReset">초기화</button>
-        <button type="button" class="btn primary" :disabled="loading" @click="onSearch">검색</button>
-      </div>
+    <div class="post-tabs">
+      <button
+        type="button"
+        class="post-tab"
+        :class="{ 'post-tab--active': postTab === 'sale' }"
+        @click="postTab = 'sale'"
+      >판매글</button>
+      <button
+        type="button"
+        class="post-tab"
+        :class="{ 'post-tab--active': postTab === 'wanted' }"
+        @click="postTab = 'wanted'"
+      >구매희망</button>
     </div>
 
-    <div class="toolbar">
-      <span class="meta"
-        >총 <strong>{{ total }}</strong
-        >개 · 페이지 {{ page }} / {{ pages || 1 }}</span
-      >
-      <div class="pager">
-        <label class="psize"
-          >페이지당
-          <select v-model.number="pageSize" class="select-theme select-theme--compact" @change="onPageSizeChange">
-            <option :value="10">10</option>
-            <option :value="20">20</option>
-            <option :value="50">50</option>
-          </select>
+    <!-- 판매글 섹션 -->
+    <template v-if="postTab === 'sale'">
+      <div v-if="listError" class="banner err" role="alert">{{ listError }}</div>
+
+      <div class="search">
+        <label class="s search-combo">
+          <span>검색</span>
+          <div class="search-row">
+            <select v-model="boardSearchBy" class="select-theme" aria-label="검색 항목">
+              <option value="board_id">게시글 번호</option>
+              <option value="title">게시글 이름</option>
+              <option value="user_id">작성자 아이디</option>
+              <option value="author_name">작성자 이름</option>
+            </select>
+            <input
+              v-model="boardSearchQuery"
+              type="search"
+              class="search-input"
+              :placeholder="boardSearchPlaceholder"
+              maxlength="200"
+              autocomplete="off"
+              @keydown.enter.prevent="onSearch"
+            />
+          </div>
         </label>
-        <button type="button" class="btn ghost" :disabled="page <= 1 || loading" @click="prevPage">
-          이전
-        </button>
-        <button
-          type="button"
-          class="btn ghost"
-          :disabled="!pages || page >= pages || loading"
-          @click="nextPage"
-        >
-          다음
-        </button>
+        <div class="s search-actions">
+          <button type="button" class="btn ghost" :disabled="loading" @click="onReset">초기화</button>
+          <button type="button" class="btn primary" :disabled="loading" @click="onSearch">검색</button>
+        </div>
       </div>
-    </div>
 
-    <div class="table-wrap">
-      <table class="table">
-        <colgroup>
-          <col class="col-id" />
-          <col class="col-title" />
-          <col class="col-author" />
-          <col class="col-price" />
-          <col class="col-status" />
-          <col class="col-manage" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th scope="col" class="th-num">번호</th>
-            <th scope="col">제목</th>
-            <th scope="col">작성자</th>
-            <th scope="col" class="th-price">가격</th>
-            <th scope="col">상태</th>
-            <th scope="col" class="th-manage">관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td colspan="6" class="empty">불러오는 중…</td>
-          </tr>
-          <tr v-else-if="!items.length">
-            <td colspan="6" class="empty">게시글이 없습니다.</td>
-          </tr>
-          <tr v-for="b in items" :key="b.board_id">
-            <td class="mono cell-id">{{ b.board_id }}</td>
-            <td class="cell-title">{{ b.title }}</td>
-            <td class="mono cell-author">{{ b.user_id }}</td>
-            <td class="cell-price">{{ b.price.toLocaleString() }}</td>
-            <td class="cell-status">
-              <span
-                class="status-label"
-                :class="{
-                  'status-label--on-sale': b.status === 'ON_SALE',
-                  'status-label--reserved': b.status === 'RESERVED',
-                  'status-label--sold': b.status === 'SOLD',
-                }"
-              >{{ statusLabel[b.status] ?? b.status }}</span>
-            </td>
-            <td class="cell-manage">
-              <div class="manage-stack">
-                <RouterLink class="link-detail" :to="`/boards/${b.board_id}`" target="_blank">상세 보기</RouterLink>
-                <div class="status-row">
-                  <select
-                    v-model="statusDraft[b.board_id]"
-                    class="select-theme select-theme--compact"
-                    :disabled="savingId === b.board_id"
-                  >
-                    <option value="ON_SALE">판매중</option>
-                    <option value="RESERVED">예약중</option>
-                    <option value="SOLD">거래완료</option>
-                  </select>
+      <div class="toolbar">
+        <span class="meta">총 <strong>{{ total }}</strong>개 · 페이지 {{ page }} / {{ pages || 1 }}</span>
+        <div class="pager">
+          <label class="psize">페이지당
+            <select v-model.number="pageSize" class="select-theme select-theme--compact" @change="onPageSizeChange">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+            </select>
+          </label>
+          <button type="button" class="btn ghost" :disabled="page <= 1 || loading" @click="prevPage">이전</button>
+          <button type="button" class="btn ghost" :disabled="!pages || page >= pages || loading" @click="nextPage">다음</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <colgroup>
+            <col class="col-id" />
+            <col class="col-title" />
+            <col class="col-author" />
+            <col class="col-price" />
+            <col class="col-status" />
+            <col class="col-manage" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" class="th-num">번호</th>
+              <th scope="col">제목</th>
+              <th scope="col">작성자</th>
+              <th scope="col" class="th-price">가격</th>
+              <th scope="col">상태</th>
+              <th scope="col" class="th-manage">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="loading">
+              <td colspan="6" class="empty">불러오는 중…</td>
+            </tr>
+            <tr v-else-if="!items.length">
+              <td colspan="6" class="empty">게시글이 없습니다.</td>
+            </tr>
+            <tr v-for="b in items" :key="b.board_id">
+              <td class="mono cell-id">{{ b.board_id }}</td>
+              <td class="cell-title">{{ b.title }}</td>
+              <td class="mono cell-author">{{ b.user_id }}</td>
+              <td class="cell-price">{{ b.price.toLocaleString() }}</td>
+              <td class="cell-status">
+                <span
+                  class="status-label"
+                  :class="{
+                    'status-label--on-sale': b.status === 'ON_SALE',
+                    'status-label--reserved': b.status === 'RESERVED',
+                    'status-label--sold': b.status === 'SOLD',
+                  }"
+                >{{ statusLabel[b.status] ?? b.status }}</span>
+              </td>
+              <td class="cell-manage">
+                <div class="manage-stack">
+                  <RouterLink class="link-detail" :to="`/boards/${b.board_id}`" target="_blank">상세 보기</RouterLink>
+                  <div class="status-row">
+                    <select
+                      v-model="statusDraft[b.board_id]"
+                      class="select-theme select-theme--compact"
+                      :disabled="savingId === b.board_id"
+                    >
+                      <option value="ON_SALE">판매중</option>
+                      <option value="RESERVED">예약중</option>
+                      <option value="SOLD">거래완료</option>
+                    </select>
+                    <button
+                      type="button"
+                      class="btn ghost sm"
+                      :disabled="savingId === b.board_id || statusDraft[b.board_id] === b.status"
+                      @click="saveStatus(b.board_id)"
+                    >적용</button>
+                  </div>
                   <button
                     type="button"
-                    class="btn ghost sm"
-                    :disabled="savingId === b.board_id || statusDraft[b.board_id] === b.status"
-                    @click="saveStatus(b.board_id)"
-                  >
-                    적용
-                  </button>
+                    class="btn danger sm btn-block"
+                    :disabled="savingId === b.board_id"
+                    @click="removeBoard(b)"
+                  >삭제</button>
                 </div>
-                <button
-                  type="button"
-                  class="btn danger sm btn-block"
-                  :disabled="savingId === b.board_id"
-                  @click="removeBoard(b)"
-                >
-                  삭제
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <!-- 구매희망 섹션 -->
+    <template v-else>
+      <div v-if="wError" class="banner err" role="alert">{{ wError }}</div>
+
+      <div class="search">
+        <label class="s search-combo">
+          <span>검색</span>
+          <div class="search-row">
+            <select v-model="wSearchBy" class="select-theme" aria-label="검색 항목">
+              <option value="wanted_id">게시글 번호</option>
+              <option value="title">게시글 이름</option>
+              <option value="user_id">작성자 아이디</option>
+              <option value="author_name">작성자 이름</option>
+            </select>
+            <input
+              v-model="wSearchQuery"
+              type="search"
+              class="search-input"
+              :placeholder="wSearchPlaceholder"
+              maxlength="200"
+              autocomplete="off"
+              @keydown.enter.prevent="onWSearch"
+            />
+          </div>
+        </label>
+        <div class="s search-actions">
+          <button type="button" class="btn ghost" :disabled="wLoading" @click="onWReset">초기화</button>
+          <button type="button" class="btn primary" :disabled="wLoading" @click="onWSearch">검색</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <span class="meta">총 <strong>{{ wTotal }}</strong>개 · 페이지 {{ wPage }} / {{ wPages || 1 }}</span>
+        <div class="pager">
+          <label class="psize">페이지당
+            <select v-model.number="wPageSize" class="select-theme select-theme--compact" @change="onWPageSizeChange">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+            </select>
+          </label>
+          <button type="button" class="btn ghost" :disabled="wPage <= 1 || wLoading" @click="wPrevPage">이전</button>
+          <button type="button" class="btn ghost" :disabled="!wPages || wPage >= wPages || wLoading" @click="wNextPage">다음</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <colgroup>
+            <col class="col-id" />
+            <col class="col-title" />
+            <col class="col-author" />
+            <col class="col-price" />
+            <col class="col-location" />
+            <col class="col-manage" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" class="th-num">번호</th>
+              <th scope="col">제목</th>
+              <th scope="col">작성자</th>
+              <th scope="col" class="th-price">최대 가격</th>
+              <th scope="col">선호 지역</th>
+              <th scope="col" class="th-manage">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="wLoading">
+              <td colspan="6" class="empty">불러오는 중…</td>
+            </tr>
+            <tr v-else-if="!wItems.length">
+              <td colspan="6" class="empty">구매희망 게시글이 없습니다.</td>
+            </tr>
+            <tr v-for="w in wItems" :key="w.wanted_id">
+              <td class="mono cell-id">{{ w.wanted_id }}</td>
+              <td class="cell-title">{{ w.title }}</td>
+              <td class="mono cell-author">{{ w.user_id }}</td>
+              <td class="cell-price">{{ w.max_price != null ? w.max_price.toLocaleString() : '—' }}</td>
+              <td class="cell-location">{{ w.preferred_location ?? '—' }}</td>
+              <td class="cell-manage">
+                <div class="manage-stack">
+                  <button
+                    type="button"
+                    class="btn danger sm btn-block"
+                    :disabled="wSavingId === w.wanted_id"
+                    @click="removeWanted(w)"
+                  >삭제</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -316,6 +520,29 @@ async function removeBoard(b: AdminBoard) {
   background: rgba(92, 176, 185, 0.12);
   border-color: rgba(92, 176, 185, 0.35);
   font-weight: 600;
+}
+
+.post-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.post-tab {
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.post-tab--active {
+  background: rgba(92, 176, 185, 0.12);
+  border-color: rgba(92, 176, 185, 0.45);
+  font-weight: 700;
+  color: hsl(186, 38%, 30%);
 }
 
 .head {
@@ -456,6 +683,15 @@ async function removeBoard(b: AdminBoard) {
 }
 .table col.col-manage {
   width: 35%;
+}
+
+.table col.col-location {
+  width: 15%;
+}
+
+.cell-location {
+  vertical-align: middle;
+  word-break: break-word;
 }
 
 .table th,

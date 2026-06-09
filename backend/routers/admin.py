@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, aliased
 from database import get_db
 from deps import require_admin
 from email_utils import build_registration_rejected_email, send_email
-from models import Board, Report, School, User
+from models import Board, Report, School, User, WantedPost
 from schemas import (
     AdminBoardListResponse,
     AdminBoardOut,
@@ -25,6 +25,8 @@ from schemas import (
     AdminUserOut,
     AdminUserPatchResult,
     AdminUserUpdate,
+    AdminWantedListResponse,
+    AdminWantedOut,
     SchoolOut,
 )
 from upload_storage import delete_uploaded_file
@@ -262,6 +264,61 @@ def admin_delete_board(
     for img in list(board.images):
         delete_uploaded_file(img.path)
     db.delete(board)
+    db.commit()
+
+
+@router.get("/wanted", response_model=AdminWantedListResponse)
+def list_wanted(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    wanted_id: int | None = Query(None, description="게시글 번호 검색(정확히)"),
+    title: str | None = Query(None, description="게시글 제목 검색(부분일치)"),
+    user_id: str | None = Query(None, description="작성자 아이디 검색(부분일치)"),
+    author_name: str | None = Query(None, description="작성자 이름 검색(부분일치, User.name)"),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminWantedListResponse:
+    stmt = select(WantedPost)
+    if author_name and author_name.strip():
+        stmt = stmt.join(User, WantedPost.user_id == User.user_id)
+    filters = []
+    if wanted_id is not None:
+        filters.append(WantedPost.wanted_id == wanted_id)
+    if title:
+        filters.append(WantedPost.title.like(f"%{title.strip()}%"))
+    if user_id:
+        filters.append(WantedPost.user_id.like(f"%{user_id.strip()}%"))
+    if author_name and author_name.strip():
+        filters.append(User.name.like(f"%{author_name.strip()}%"))
+    if filters:
+        stmt = stmt.where(*filters)
+
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    pages = ceil(total / page_size) if total else 0
+    offset = (page - 1) * page_size
+    rows = (
+        db.execute(stmt.order_by(WantedPost.created_at.desc()).offset(offset).limit(page_size)).scalars().all()
+    )
+    items = [AdminWantedOut.model_validate(w) for w in rows]
+    return AdminWantedListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
+    )
+
+
+@router.delete("/wanted/{wanted_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_delete_wanted(
+    wanted_id: int,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    wanted = db.get(WantedPost, wanted_id)
+    if wanted is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
+    db.delete(wanted)
     db.commit()
 
 
