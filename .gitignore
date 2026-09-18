@@ -1,0 +1,4 @@
+
+# 컨테이너 런타임 데이터 (compose.yml 볼륨)
+/data/
+/.env

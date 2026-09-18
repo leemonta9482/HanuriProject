@@ -24,6 +24,18 @@ cloudflared tunnel run hanuri
 
 ---
 
+## Docker 로 한 번에 띄우기
+
+```bash
+cp .env.example .env      # DB_PASSWORD, JWT_SECRET, APP_PUBLIC_URL, SMTP_* 채우기
+docker compose up --build -d
+# http://127.0.0.1:8080  (PORT 로 변경 가능)
+```
+
+`compose.yml` 이 MySQL(`db`) · FastAPI(`backend`) · Vue 빌드 + nginx(`web`) 를 띄우고, nginx 가 `/api`, `/uploads`, `/api/ws`(WebSocket), `/docs` 를 백엔드로 넘깁니다. 밖으로 여는 포트는 `127.0.0.1:PORT` 하나라 Cloudflare Tunnel 뒤에 두기 좋습니다. 업로드는 `./data/uploads`, OCR 모델 캐시는 `./data/paddlex`, DB 는 `db-data` 볼륨에 남습니다. 첫 기동 때 `database/main.sql` 로 스키마가 만들어집니다(이미 데이터가 있으면 건너뜀).
+
+my-cloudflare 대시보드에서는 라우트 추가에 이 저장소 주소·호스트·포트만 넣으면 됩니다. 뜬 뒤 서버 카드 ⋯ → ".env 편집" 으로 위 값을 넣고 **배포**(재시작)하세요.
+
 ## 소개
 
 이 프로젝트는 대학별 학생들의 중고물품을 사고팔 수 있는 웹입니다.  
